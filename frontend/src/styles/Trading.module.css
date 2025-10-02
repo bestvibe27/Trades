@@ -1,0 +1,20 @@
+.page { display: grid; gap: 16px; }
+.header { display: flex; align-items: center; justify-content: space-between; }
+.title { font-size: 22px; font-weight: 800; }
+.subtitle { color: var(--text-dim); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
+.cardLabel { color: var(--text-dim); font-size: 12px; }
+.cardValue { font-size: 20px; font-weight: 700; margin-top: 2px; }
+
+.section { margin-top: 8px; }
+.sectionHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.tableWrap { overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.table { width: 100%; border-collapse: collapse; }
+.table thead th { text-align: left; padding: 10px; color: var(--text-dim); background: var(--bg-elev-2); position: sticky; top: 0; }
+.table tbody td { padding: 10px; border-top: 1px solid var(--border); }
+.table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+.table tbody tr:hover { background: rgba(79,140,255,0.06); }
+.badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid var(--border); }
+.badgeBuy { color: var(--profit); background: rgba(0,200,83,0.07); border-color: #144a2f; }
+.badgeSell { color: var(--loss); background: rgba(213,0,0,0.07); border-color: #5f1a1a; }

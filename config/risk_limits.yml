@@ -1,0 +1,79 @@
+# Risk Management Configuration
+
+# Global risk settings
+global:
+  max_account_risk: 0.02      # Max risk per trade as % of account
+  max_daily_drawdown: 0.05    # Max daily drawdown as % of account
+  max_overall_drawdown: 0.2   # Max drawdown before stopping trading
+  
+# Position sizing
+position_sizing:
+  method: "fixed_fractional"  # Options: fixed_fractional, fixed_amount, kelly_criterion
+  fixed_fraction: 0.02        # Risk 2% per trade
+  fixed_amount: 100           # Fixed amount per trade (if using fixed_amount)
+  max_position_size: 0.1      # Max position size as % of account
+  
+# Stop loss configuration
+stop_loss:
+  enabled: true
+  method: "atr"  # Options: atr, percentage, support_resistance
+  atr_multiplier: 2.0
+  max_stop_distance: 0.05    # Max stop distance as % of price
+  trailing_stop: true
+  trailing_distance: 0.02     # 2% trailing distance
+  
+# Take profit configuration
+take_profit:
+  enabled: true
+  method: "risk_reward"  # Options: risk_reward, fixed, atr
+  risk_reward_ratio: 2.0
+  atr_multiplier: 3.0
+  
+# Trading hours restrictions
+trading_hours:
+  enabled: true
+  timezone: "UTC"
+  start_time: "00:00"
+  end_time: "23:59"
+  close_before_weekend: true  # Close positions before weekend
+  
+# Symbol specific risk settings
+symbols:
+  EURUSD:
+    max_position_size: 0.15
+    max_risk: 0.015
+    spread_limit: 0.0002
+    
+  BTCUSDT:
+    max_position_size: 0.1
+    max_risk: 0.01
+    volatility_multiplier: 0.5
+    
+# Volatility adjustments
+volatility:
+  enabled: true
+  lookback_period: 20  # Days
+  max_volatility: 0.03 # Max allowed volatility (3%)
+  
+# Maximum concurrent positions
+concurrent_positions:
+  max_total: 10
+  max_per_symbol: 3
+  max_correlation: 0.7  # Maximum allowed correlation between positions
+  
+# Risk per strategy
+strategy_limits:
+  max_risk_per_strategy: 0.3  # Max risk allocated to a single strategy
+  min_win_rate: 0.4           # Minimum acceptable win rate
+  min_profit_factor: 1.2       # Minimum acceptable profit factor
+  
+# Circuit breakers
+circuit_breakers:
+  daily_loss_limit: 0.05   # 5% daily loss limit
+  weekly_loss_limit: 0.1   # 10% weekly loss limit
+  max_drawdown: 0.2        # 20% max drawdown
+  
+# Risk monitoring
+monitoring:
+  check_interval: 60  # seconds
+  alert_threshold: 0.8  # Alert when risk reaches 80% of limit

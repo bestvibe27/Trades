@@ -1,0 +1,835 @@
+/* Component-specific styles for the trading application */
+
+/* Trading Dashboard Components */
+.trading-dashboard {
+  @apply min-h-screen bg-gray-50;
+}
+
+.dark .trading-dashboard {
+  @apply bg-gray-900;
+}
+
+/* Header Component */
+.trading-header {
+  @apply bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40;
+}
+
+.dark .trading-header {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.header-logo {
+  @apply flex items-center space-x-2 text-xl font-bold text-gray-900;
+}
+
+.dark .header-logo {
+  @apply text-gray-100;
+}
+
+.header-nav {
+  @apply hidden md:flex space-x-8;
+}
+
+.header-nav-item {
+  @apply text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors;
+}
+
+.dark .header-nav-item {
+  @apply text-gray-300 hover:text-gray-100;
+}
+
+.header-nav-item.active {
+  @apply text-primary bg-primary/10;
+}
+
+/* Sidebar Component */
+.trading-sidebar {
+  @apply w-64 bg-white shadow-sm border-r border-gray-200 h-full;
+}
+
+.dark .trading-sidebar {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.sidebar-nav {
+  @apply space-y-1 px-3 py-4;
+}
+
+.sidebar-nav-item {
+  @apply flex items-center px-3 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors;
+}
+
+.dark .sidebar-nav-item {
+  @apply text-gray-300 hover:bg-gray-700 hover:text-gray-100;
+}
+
+.sidebar-nav-item.active {
+  @apply text-primary bg-primary/10;
+}
+
+.sidebar-nav-icon {
+  @apply mr-3 h-5 w-5;
+}
+
+/* Market Overview Component */
+.market-overview {
+  @apply bg-white rounded-lg shadow border border-gray-200;
+}
+
+.dark .market-overview {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.market-symbol {
+  @apply flex items-center justify-between py-3 px-4 border-b border-gray-100 last:border-b-0;
+}
+
+.dark .market-symbol {
+  @apply border-gray-700;
+}
+
+.market-symbol-info {
+  @apply flex-1;
+}
+
+.market-symbol-name {
+  @apply font-medium text-gray-900;
+}
+
+.dark .market-symbol-name {
+  @apply text-gray-100;
+}
+
+.market-symbol-volume {
+  @apply text-sm text-gray-500;
+}
+
+.market-symbol-price {
+  @apply text-right;
+}
+
+.market-symbol-current-price {
+  @apply font-medium text-gray-900;
+}
+
+.dark .market-symbol-current-price {
+  @apply text-gray-100;
+}
+
+.market-symbol-change {
+  @apply text-sm;
+}
+
+.market-symbol-change.positive {
+  @apply text-success;
+}
+
+.market-symbol-change.negative {
+  @apply text-danger;
+}
+
+.market-symbol-stats {
+  @apply text-right ml-4 text-sm text-gray-500;
+}
+
+/* Portfolio Component */
+.portfolio-summary {
+  @apply bg-white rounded-lg shadow border border-gray-200;
+}
+
+.dark .portfolio-summary {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.portfolio-metrics {
+  @apply grid grid-cols-1 md:grid-cols-3 gap-4 mb-6;
+}
+
+.portfolio-metric {
+  @apply text-center;
+}
+
+.portfolio-metric-value {
+  @apply text-2xl font-bold text-gray-900;
+}
+
+.dark .portfolio-metric-value {
+  @apply text-gray-100;
+}
+
+.portfolio-metric-value.positive {
+  @apply text-success;
+}
+
+.portfolio-metric-value.negative {
+  @apply text-danger;
+}
+
+.portfolio-metric-label {
+  @apply text-sm text-gray-500;
+}
+
+.portfolio-positions {
+  @apply space-y-3;
+}
+
+.portfolio-position {
+  @apply flex justify-between items-center py-3 px-4 bg-gray-50 rounded-lg;
+}
+
+.dark .portfolio-position {
+  @apply bg-gray-700;
+}
+
+.portfolio-position-info {
+  @apply flex-1;
+}
+
+.portfolio-position-symbol {
+  @apply font-medium text-gray-900;
+}
+
+.dark .portfolio-position-symbol {
+  @apply text-gray-100;
+}
+
+.portfolio-position-details {
+  @apply text-sm text-gray-500;
+}
+
+.portfolio-position-price {
+  @apply text-right;
+}
+
+.portfolio-position-current-price {
+  @apply font-medium text-gray-900;
+}
+
+.dark .portfolio-position-current-price {
+  @apply text-gray-100;
+}
+
+.portfolio-position-pnl {
+  @apply text-right ml-4;
+}
+
+.portfolio-position-pnl-value {
+  @apply font-medium;
+}
+
+.portfolio-position-pnl-value.positive {
+  @apply text-success;
+}
+
+.portfolio-position-pnl-value.negative {
+  @apply text-danger;
+}
+
+.portfolio-position-pnl-percent {
+  @apply text-sm;
+}
+
+.portfolio-position-pnl-percent.positive {
+  @apply text-success;
+}
+
+.portfolio-position-pnl-percent.negative {
+  @apply text-danger;
+}
+
+/* Risk Metrics Component */
+.risk-metrics {
+  @apply bg-white rounded-lg shadow border border-gray-200;
+}
+
+.dark .risk-metrics {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.risk-metrics-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4;
+}
+
+.risk-metric-card {
+  @apply p-4 rounded-lg border;
+}
+
+.risk-metric-card.low {
+  @apply bg-success/10 border-success/20;
+}
+
+.risk-metric-card.medium {
+  @apply bg-warning/10 border-warning/20;
+}
+
+.risk-metric-card.high {
+  @apply bg-danger/10 border-danger/20;
+}
+
+.risk-metric-card.neutral {
+  @apply bg-gray-50 border-gray-200;
+}
+
+.dark .risk-metric-card.neutral {
+  @apply bg-gray-700 border-gray-600;
+}
+
+.risk-metric-label {
+  @apply text-sm font-medium text-gray-500;
+}
+
+.risk-metric-value {
+  @apply text-2xl font-bold;
+}
+
+.risk-metric-value.low {
+  @apply text-success;
+}
+
+.risk-metric-value.medium {
+  @apply text-warning;
+}
+
+.risk-metric-value.high {
+  @apply text-danger;
+}
+
+.risk-metric-value.neutral {
+  @apply text-gray-900;
+}
+
+.dark .risk-metric-value.neutral {
+  @apply text-gray-100;
+}
+
+.risk-assessment {
+  @apply mt-6 p-4 bg-info/10 border border-info/20 rounded-lg;
+}
+
+.risk-assessment-title {
+  @apply text-sm font-medium text-info mb-2;
+}
+
+.risk-assessment-message {
+  @apply text-sm text-info;
+}
+
+/* Chart Components */
+.trading-chart {
+  @apply bg-white rounded-lg shadow border border-gray-200;
+}
+
+.dark .trading-chart {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.chart-header {
+  @apply flex justify-between items-center mb-4;
+}
+
+.chart-title {
+  @apply text-lg font-medium text-gray-900;
+}
+
+.dark .chart-title {
+  @apply text-gray-100;
+}
+
+.chart-info {
+  @apply text-sm text-gray-500;
+}
+
+.chart-container {
+  @apply w-full;
+}
+
+/* Performance Chart */
+.performance-chart {
+  @apply bg-white rounded-lg shadow border border-gray-200;
+}
+
+.dark .performance-chart {
+  @apply bg-gray-800 border-gray-700;
+}
+
+/* PnL Chart */
+.pnl-chart {
+  @apply bg-white rounded-lg shadow border border-gray-200;
+}
+
+.dark .pnl-chart {
+  @apply bg-gray-800 border-gray-700;
+}
+
+/* Order Form Component */
+.order-form {
+  @apply bg-white rounded-lg shadow border border-gray-200;
+}
+
+.dark .order-form {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.order-form-header {
+  @apply px-6 py-4 border-b border-gray-200;
+}
+
+.dark .order-form-header {
+  @apply border-gray-700;
+}
+
+.order-form-title {
+  @apply text-lg font-medium text-gray-900;
+}
+
+.dark .order-form-title {
+  @apply text-gray-100;
+}
+
+.order-form-body {
+  @apply px-6 py-4 space-y-4;
+}
+
+.order-form-group {
+  @apply space-y-2;
+}
+
+.order-form-label {
+  @apply block text-sm font-medium text-gray-700;
+}
+
+.dark .order-form-label {
+  @apply text-gray-300;
+}
+
+.order-form-input {
+  @apply input;
+}
+
+.order-form-select {
+  @apply input;
+}
+
+.order-form-radio-group {
+  @apply flex space-x-4;
+}
+
+.order-form-radio {
+  @apply flex items-center;
+}
+
+.order-form-radio-input {
+  @apply h-4 w-4 text-primary focus:ring-primary border-gray-300;
+}
+
+.dark .order-form-radio-input {
+  @apply border-gray-600;
+}
+
+.order-form-radio-label {
+  @apply ml-2 text-sm text-gray-700;
+}
+
+.dark .order-form-radio-label {
+  @apply text-gray-300;
+}
+
+.order-form-footer {
+  @apply px-6 py-4 border-t border-gray-200;
+}
+
+.dark .order-form-footer {
+  @apply border-gray-700;
+}
+
+/* Positions List Component */
+.positions-list {
+  @apply bg-white rounded-lg shadow border border-gray-200;
+}
+
+.dark .positions-list {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.positions-list-header {
+  @apply px-6 py-4 border-b border-gray-200;
+}
+
+.dark .positions-list-header {
+  @apply border-gray-700;
+}
+
+.positions-list-title {
+  @apply text-lg font-medium text-gray-900;
+}
+
+.dark .positions-list-title {
+  @apply text-gray-100;
+}
+
+.positions-list-body {
+  @apply divide-y divide-gray-200;
+}
+
+.dark .positions-list-body {
+  @apply divide-gray-700;
+}
+
+.position-item {
+  @apply px-6 py-4;
+}
+
+.position-item-header {
+  @apply flex justify-between items-start mb-2;
+}
+
+.position-symbol {
+  @apply font-medium text-gray-900;
+}
+
+.dark .position-symbol {
+  @apply text-gray-100;
+}
+
+.position-side {
+  @apply text-sm font-medium px-2 py-1 rounded-full;
+}
+
+.position-side.long {
+  @apply text-success bg-success/10;
+}
+
+.position-side.short {
+  @apply text-danger bg-danger/10;
+}
+
+.position-details {
+  @apply grid grid-cols-2 md:grid-cols-4 gap-4 text-sm;
+}
+
+.position-detail {
+  @apply space-y-1;
+}
+
+.position-detail-label {
+  @apply text-gray-500;
+}
+
+.position-detail-value {
+  @apply font-medium text-gray-900;
+}
+
+.dark .position-detail-value {
+  @apply text-gray-100;
+}
+
+.position-detail-value.positive {
+  @apply text-success;
+}
+
+.position-detail-value.negative {
+  @apply text-danger;
+}
+
+/* Trade History Component */
+.trade-history {
+  @apply bg-white rounded-lg shadow border border-gray-200;
+}
+
+.dark .trade-history {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.trade-history-header {
+  @apply px-6 py-4 border-b border-gray-200;
+}
+
+.dark .trade-history-header {
+  @apply border-gray-700;
+}
+
+.trade-history-title {
+  @apply text-lg font-medium text-gray-900;
+}
+
+.dark .trade-history-title {
+  @apply text-gray-100;
+}
+
+.trade-history-table {
+  @apply table;
+}
+
+.trade-history-header-row {
+  @apply table-header;
+}
+
+.trade-history-header-cell {
+  @apply table-header-cell;
+}
+
+.trade-history-body {
+  @apply table-body;
+}
+
+.trade-history-row {
+  @apply hover:bg-gray-50;
+}
+
+.dark .trade-history-row {
+  @apply hover:bg-gray-700;
+}
+
+.trade-history-cell {
+  @apply table-cell;
+}
+
+.trade-side.buy {
+  @apply text-success font-medium;
+}
+
+.trade-side.sell {
+  @apply text-danger font-medium;
+}
+
+.trade-pnl.positive {
+  @apply text-success font-medium;
+}
+
+.trade-pnl.negative {
+  @apply text-danger font-medium;
+}
+
+/* Strategy Components */
+.strategy-list {
+  @apply bg-white rounded-lg shadow border border-gray-200;
+}
+
+.dark .strategy-list {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.strategy-item {
+  @apply p-6 border-b border-gray-200 last:border-b-0;
+}
+
+.dark .strategy-item {
+  @apply border-gray-700;
+}
+
+.strategy-header {
+  @apply flex justify-between items-start mb-4;
+}
+
+.strategy-info {
+  @apply flex-1;
+}
+
+.strategy-name {
+  @apply text-lg font-medium text-gray-900;
+}
+
+.dark .strategy-name {
+  @apply text-gray-100;
+}
+
+.strategy-type {
+  @apply text-sm text-gray-500;
+}
+
+.strategy-status {
+  @apply flex items-center space-x-2;
+}
+
+.strategy-status-indicator {
+  @apply w-2 h-2 rounded-full;
+}
+
+.strategy-status-indicator.active {
+  @apply bg-success;
+}
+
+.strategy-status-indicator.inactive {
+  @apply bg-gray-400;
+}
+
+.strategy-status-text {
+  @apply text-sm font-medium;
+}
+
+.strategy-status-text.active {
+  @apply text-success;
+}
+
+.strategy-status-text.inactive {
+  @apply text-gray-500;
+}
+
+.strategy-metrics {
+  @apply grid grid-cols-2 md:grid-cols-4 gap-4 mt-4;
+}
+
+.strategy-metric {
+  @apply text-center;
+}
+
+.strategy-metric-value {
+  @apply text-lg font-bold text-gray-900;
+}
+
+.dark .strategy-metric-value {
+  @apply text-gray-100;
+}
+
+.strategy-metric-value.positive {
+  @apply text-success;
+}
+
+.strategy-metric-value.negative {
+  @apply text-danger;
+}
+
+.strategy-metric-label {
+  @apply text-xs text-gray-500 uppercase tracking-wide;
+}
+
+/* Backtest Results Component */
+.backtest-results {
+  @apply bg-white rounded-lg shadow border border-gray-200;
+}
+
+.dark .backtest-results {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.backtest-summary {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6;
+}
+
+.backtest-metric {
+  @apply text-center p-4 bg-gray-50 rounded-lg;
+}
+
+.dark .backtest-metric {
+  @apply bg-gray-700;
+}
+
+.backtest-metric-value {
+  @apply text-2xl font-bold text-gray-900;
+}
+
+.dark .backtest-metric-value {
+  @apply text-gray-100;
+}
+
+.backtest-metric-value.positive {
+  @apply text-success;
+}
+
+.backtest-metric-value.negative {
+  @apply text-danger;
+}
+
+.backtest-metric-label {
+  @apply text-sm text-gray-500;
+}
+
+/* Loading States */
+.loading-skeleton {
+  @apply animate-pulse bg-gray-200 rounded;
+}
+
+.dark .loading-skeleton {
+  @apply bg-gray-700;
+}
+
+.loading-spinner {
+  @apply flex items-center justify-center p-8;
+}
+
+.loading-text {
+  @apply text-gray-500 text-center;
+}
+
+/* Empty States */
+.empty-state {
+  @apply text-center py-12;
+}
+
+.empty-state-icon {
+  @apply mx-auto h-12 w-12 text-gray-400;
+}
+
+.empty-state-title {
+  @apply mt-2 text-sm font-medium text-gray-900;
+}
+
+.dark .empty-state-title {
+  @apply text-gray-100;
+}
+
+.empty-state-description {
+  @apply mt-1 text-sm text-gray-500;
+}
+
+/* Error States */
+.error-state {
+  @apply text-center py-12;
+}
+
+.error-state-icon {
+  @apply mx-auto h-12 w-12 text-danger;
+}
+
+.error-state-title {
+  @apply mt-2 text-sm font-medium text-gray-900;
+}
+
+.dark .error-state-title {
+  @apply text-gray-100;
+}
+
+.error-state-description {
+  @apply mt-1 text-sm text-gray-500;
+}
+
+.error-state-action {
+  @apply mt-4;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .trading-sidebar {
+    @apply w-full;
+  }
+  
+  .portfolio-metrics {
+    @apply grid-cols-1;
+  }
+  
+  .risk-metrics-grid {
+    @apply grid-cols-1;
+  }
+  
+  .strategy-metrics {
+    @apply grid-cols-2;
+  }
+  
+  .backtest-summary {
+    @apply grid-cols-1;
+  }
+  
+  .position-details {
+    @apply grid-cols-1;
+  }
+}
+
+
+
+
+
+
+
+
+
+

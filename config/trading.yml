@@ -1,0 +1,79 @@
+# Trading Configuration
+
+# Default trading parameters
+defaults:
+  # Risk management
+  max_position_size: 0.1  # Max position size as percentage of account
+  max_daily_loss: 0.05    # Max daily loss as percentage of account
+  max_drawdown: 0.1       # Max drawdown as percentage of account
+  
+  # Order settings
+  default_leverage: 10     # Default leverage
+  default_quantity: 0.01   # Default trade size
+  
+  # Slippage and spread
+  max_slippage: 0.0005    # Maximum allowed slippage (0.05%)
+  max_spread: 0.0002      # Maximum allowed spread (0.02%)
+  
+  # Timeouts
+  order_timeout: 30        # Seconds to wait for order execution
+  price_timeout: 5         # Seconds to wait for price updates
+
+# Exchange specific configurations
+exchanges:
+  exness_mt5:
+    enabled: true
+    account_type: "real"  # or "demo"
+    server: "Exness-MT5Real"
+    
+  binance:
+    enabled: false
+    api_key: ""
+    secret_key: ""
+    testnet: true
+
+# Strategy configurations
+strategies:
+  sma_crossover:
+    enabled: true
+    fast_ma: 10
+    slow_ma: 50
+    timeframe: "1h"
+    
+  rsi_strategy:
+    enabled: true
+    rsi_period: 14
+    overbought: 70
+    oversold: 30
+    timeframe: "4h"
+
+# Notification settings
+notifications:
+  email:
+    enabled: false
+    smtp_server: "smtp.example.com"
+    smtp_port: 587
+    username: ""
+    password: ""
+    from: "trading-bot@example.com"
+    to: "user@example.com"
+    
+  telegram:
+    enabled: false
+    bot_token: ""
+    chat_id: ""
+
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  file: "logs/trading_bot.log"
+  max_size: 10   # MB
+  backup_count: 5
+  
+# Backtesting settings
+backtesting:
+  initial_balance: 10000
+  commission: 0.0005  # 0.05% commission per trade
+  slippage: 0.0002    # 0.02% slippage
+  start_date: "2023-01-01"
+  end_date: "2023-12-31"

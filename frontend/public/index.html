@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI Trading Bot Platform - Advanced algorithmic trading with real-time market data, strategy backtesting, and portfolio management.">
+    <meta name="keywords" content="trading, bot, algorithm, forex, crypto, stocks, backtesting, portfolio, investment">
+    <meta name="author" content="Trading Bot Platform">
+    <meta name="robots" content="index, follow">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://tradingbot.example.com/">
+    <meta property="og:title" content="AI Trading Bot Platform">
+    <meta property="og:description" content="Advanced algorithmic trading with real-time market data, strategy backtesting, and portfolio management.">
+    <meta property="og:image" content="/og-image.png">
+    <meta property="og:site_name" content="Trading Bot Platform">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://tradingbot.example.com/">
+    <meta property="twitter:title" content="AI Trading Bot Platform">
+    <meta property="twitter:description" content="Advanced algorithmic trading with real-time market data, strategy backtesting, and portfolio management.">
+    <meta property="twitter:image" content="/og-image.png">
+    
+    <!-- Theme and App Configuration -->
+    <meta name="theme-color" content="#2563eb">
+    <meta name="msapplication-TileColor" content="#2563eb">
+    <meta name="msapplication-config" content="/browserconfig.xml">
+    
+    <!-- Security Headers -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+    
+    <!-- Preconnect to external domains for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://api.tradingbot.example.com">
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Favicon and Icons -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Splash Screens for iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Trading Bot">
+    
+    <!-- Windows Tiles -->
+    <meta name="msapplication-TileImage" content="/mstile-144x144.png">
+    
+    <title>Trading Bot Platform - AI-Powered Algorithmic Trading</title>
+    
+    <!-- Critical CSS for above-the-fold content -->
+    <style>
+        /* Critical CSS for initial load */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        
+        .loading-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        
+        .loading-logo {
+            width: 80px;
+            height: 80px;
+            background: white;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .loading-logo::before {
+            content: "📈";
+            font-size: 40px;
+        }
+        
+        .loading-text {
+            color: white;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .loading-subtext {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 16px;
+            margin-bottom: 32px;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-progress {
+            width: 200px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+            margin-top: 24px;
+            overflow: hidden;
+        }
+        
+        .loading-progress-bar {
+            height: 100%;
+            background: white;
+            border-radius: 2px;
+            animation: progress 2s ease-in-out infinite;
+        }
+        
+        @keyframes progress {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 100%; }
+        }
+        
+        /* Hide loading screen when app loads */
+        .app-loaded .loading-container {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-container" id="loading-screen">
+        <div class="loading-logo"></div>
+        <div class="loading-text">Trading Bot Platform</div>
+        <div class="loading-subtext">Loading your trading dashboard...</div>
+        <div class="loading-spinner"></div>
+        <div class="loading-progress">
+            <div class="loading-progress-bar"></div>
+        </div>
+    </div>
+    
+    <!-- React App Root -->
+    <div id="root"></div>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        // Register service worker for PWA functionality
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('SW registered: ', registration);
+                    })
+                    .catch((registrationError) => {
+                        console.log('SW registration failed: ', registrationError);
+                    });
+            });
+        }
+        
+        // Hide loading screen when React app loads
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const loadingScreen = document.getElementById('loading-screen');
+                if (loadingScreen) {
+                    loadingScreen.style.opacity = '0';
+                    loadingScreen.style.transition = 'opacity 0.5s ease-out';
+                    setTimeout(() => {
+                        loadingScreen.style.display = 'none';
+                    }, 500);
+                }
+            }, 1000);
+        });
+        
+        // Performance monitoring
+        window.addEventListener('load', () => {
+            if ('performance' in window) {
+                const perfData = performance.getEntriesByType('navigation')[0];
+                console.log('Page load time:', perfData.loadEventEnd - perfData.loadEventStart, 'ms');
+            }
+        });
+        
+        // Error handling for unhandled errors
+        window.addEventListener('error', (event) => {
+            console.error('Global error:', event.error);
+            // In production, you might want to send this to an error tracking service
+        });
+        
+        // Handle unhandled promise rejections
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('Unhandled promise rejection:', event.reason);
+            // In production, you might want to send this to an error tracking service
+        });
+    </script>
+    
+    <!-- Analytics and Tracking (replace with your actual tracking code) -->
+    <script>
+        // Google Analytics or other tracking code would go here
+        // Example:
+        // gtag('config', 'GA_MEASUREMENT_ID');
+    </script>
+    
+    <!-- Environment-specific configuration -->
+    <script>
+        // Make environment variables available to the app
+        window.APP_CONFIG = {
+            API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000',
+            WS_BASE_URL: process.env.NEXT_PUBLIC_WS_BASE || 'ws://localhost:8000/ws',
+            ENVIRONMENT: process.env.NODE_ENV || 'development',
+            VERSION: process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0'
+        };
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+

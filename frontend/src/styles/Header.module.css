@@ -1,0 +1,24 @@
+.header { position: sticky; top: 0; z-index: 30; backdrop-filter: saturate(140%) blur(10px); background: rgba(15, 21, 36, 0.75); border-bottom: 1px solid var(--border); }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+.headerInner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; }
+.brandLogo { width: 32px; height: 32px; border-radius: 10px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: grid; place-items: center; font-weight: 800; }
+.brandName { font-size: 18px; font-weight: 700; }
+.nav { display: none; gap: 16px; }
+.navLink { color: var(--text-dim); text-decoration: none; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; transition: color var(--transition-base) ease, background var(--transition-base) ease, border-color var(--transition-base) ease; }
+.navLink:hover { color: var(--text); border-color: var(--border); background: rgba(255,255,255,0.03); }
+@media (min-width: 768px) { .nav { display: flex; } }
+.status { display: flex; align-items: center; gap: 12px; }
+.statusDot { width: 8px; height: 8px; border-radius: 50%; background: var(--profit); box-shadow: 0 0 12px rgba(0,200,83,0.6); }
+.profile { display: flex; align-items: center; gap: 8px; color: var(--text-dim); }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a3553; display: grid; place-items: center; color: var(--text); }
+.ticker { display: none; }
+@media (min-width: 1024px) { .ticker { display: flex; gap: 18px; align-items: center; margin-left: 24px; font-variant-numeric: tabular-nums; }}
+.tickerItem { color: var(--text-dim); }
+.tickerUp { color: var(--profit); animation: pulse 2s ease-in-out infinite; }
+.tickerDown { color: var(--loss); animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+.mobileBtn { display: inline-grid; place-items: center; padding: 8px; border-radius: 8px; color: var(--text-dim); border: 1px solid transparent; }
+.mobileBtn:hover { background: rgba(255,255,255,0.05); border-color: var(--border); color: var(--text); }
+.mobileMenu { display: none; }
+@media (max-width: 767px) { .mobileMenu { display: block; border-top: 1px solid var(--border); padding: 8px 0; } }
