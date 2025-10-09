@@ -293,95 +293,50 @@ class MT5Connector:
         except Exception:
             return []
 
-    # --- Charting / Depth ---
-    def _tf_map(self, tf: str):
-        tf = (tf or "M1").upper()
-        try:
-            return {
-                "M1": getattr(mt5, "TIMEFRAME_M1", 1),
-                "M5": getattr(mt5, "TIMEFRAME_M5", 5),
-                "M15": getattr(mt5, "TIMEFRAME_M15", 15),
-                "M30": getattr(mt5, "TIMEFRAME_M30", 30),
-                "H1": getattr(mt5, "TIMEFRAME_H1", 60),
-                "H4": getattr(mt5, "TIMEFRAME_H4", 240),
-                "D1": getattr(mt5, "TIMEFRAME_D1", 1440),
-            }[tf]
-        except Exception:
-            return getattr(mt5, "TIMEFRAME_M1", 1)
+    def modify_position_sl_tp(self, ticket: int, sl: float | None = None, tp: float | None = None) -> Dict[str, Any]:
+        """Modify stop-loss and/or take-profit of an open position.
 
-    def get_candles(self, symbol: str, timeframe: str = "M1", limit: int = 500) -> List[dict]:
-        """Return recent candles for symbol.
-
-        Each item: {time, open, high, low, close, tick_volume}
+        Returns {success: bool, ticket, sl, tp, error?}
         """
         if not self.connected:
-            return []
+            return {"success": False, "error": "Not connected"}
         if self.use_mock:
-            now = int(time.time())
-            candles = []
-            price = 1.1000
-            for i in range(limit):
-                t = now - 60 * (limit - i)
-                o = price
-                h = o + 0.0005
-                l = o - 0.0005
-                c = o + (0.0002 if i % 2 == 0 else -0.0002)
-                price = c
-                candles.append({"time": t, "open": o, "high": h, "low": l, "close": c, "tick_volume": 10})
-            return candles
-        try:
+            # Update mock position
+            for p in self._mock_positions:
+                if getattr(p, "ticket", None) == ticket:
+                    if sl is not None:
+                        setattr(p, "sl", float(sl))
+                    if tp is not None:
+                        setattr(p, "tp", float(tp))
+                    return {"success": True, "ticket": ticket, "sl": getattr(p, "sl", 0.0), "tp": getattr(p, "tp", 0.0)}
+            return {"success": False, "error": "Position not found"}
+        try:  # pragma: no cover
             if not self._real_initialized:
                 self.connect()
-            mt5.symbol_select(symbol, True)  # type: ignore
-            tf_const = self._tf_map(timeframe)
-            rates = mt5.copy_rates_from_pos(symbol, tf_const, 0, limit)  # type: ignore
-            out: List[dict] = []
-            for r in (rates or []):
-                out.append({
-                    "time": int(getattr(r, "time", 0)),
-                    "open": float(getattr(r, "open", 0.0)),
-                    "high": float(getattr(r, "high", 0.0)),
-                    "low": float(getattr(r, "low", 0.0)),
-                    "close": float(getattr(r, "close", 0.0)),
-                    "tick_volume": int(getattr(r, "tick_volume", 0)),
-                })
-            return out
-        except Exception:
-            return []
+            if mt5 is None:
+                return {"success": False, "error": "MT5 module not available"}
 
-    def get_order_book(self, symbol: str) -> Dict[str, List[dict]]:
-        """Return order book (market depth) if available.
+            # Read current position
+            pos = mt5.positions_get(ticket=ticket)
+            if not pos:
+                return {"success": False, "error": "Position not found"}
+            p0 = pos[0]
+            new_sl = float(sl) if sl is not None else float(getattr(p0, "sl", 0.0))
+            new_tp = float(tp) if tp is not None else float(getattr(p0, "tp", 0.0))
 
-        Format: { bids: [{price, volume}], asks: [{price, volume}] }
-        """
-        if not self.connected:
-            return {"bids": [], "asks": []}
-        if self.use_mock:
-            return {
-                "bids": [{"price": 1.1000 - i * 0.0001, "volume": 1 + i} for i in range(5)],
-                "asks": [{"price": 1.1002 + i * 0.0001, "volume": 1 + i} for i in range(5)],
+            request = {
+                "action": getattr(mt5, "TRADE_ACTION_SLTP", 0),
+                "position": int(ticket),
+                "sl": new_sl,
+                "tp": new_tp,
+                "symbol": getattr(p0, "symbol", ""),
             }
-        try:
-            if not self._real_initialized:
-                self.connect()
-            book = mt5.book_get(symbol)  # type: ignore
-            bids: List[dict] = []
-            asks: List[dict] = []
-            for rec in (book or []):
-                entry_type = getattr(rec, "type", None)
-                price = float(getattr(rec, "price", 0.0))
-                volume = float(getattr(rec, "volume", 0.0))
-                if entry_type == getattr(mt5, "BOOK_TYPE_SELL", 1):
-                    asks.append({"price": price, "volume": volume})
-                elif entry_type == getattr(mt5, "BOOK_TYPE_BUY", 0):
-                    bids.append({"price": price, "volume": volume})
-            # sort depth: bids desc price, asks asc price
-            bids.sort(key=lambda x: x["price"], reverse=True)
-            asks.sort(key=lambda x: x["price"])
-            return {"bids": bids, "asks": asks}
-        except Exception:
-            return {"bids": [], "asks": []}
-
+            result = mt5.order_send(request)
+            if getattr(result, "retcode", 1) != getattr(mt5, "TRADE_RETCODE_DONE", 10009):
+                return {"success": False, "error": f"MT5 modify failed: {getattr(result, 'comment', '')} ({getattr(result, 'retcode', '')})"}
+            return {"success": True, "ticket": ticket, "sl": new_sl, "tp": new_tp}
+        except Exception as e:  # pragma: no cover
+            return {"success": False, "error": str(e)}
     def get_symbol_info(self, symbol: str) -> Optional[MT5SymbolInfo]:
         """Get symbol information."""
         if not self.connected:
@@ -976,6 +931,7 @@ class MT5Connector:
                         "side": side,
                         "volume": float(getattr(d, "volume", 0.0)),
                         "price": float(getattr(d, "price", 0.0)),
+                        "profit": float(getattr(d, "profit", 0.0)),
                         "time": datetime.fromtimestamp(getattr(d, "time", 0), tz=timezone.utc).isoformat(),
                     }
                 )

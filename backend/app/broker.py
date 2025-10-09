@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 from typing import Optional
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
-import asyncio
-import json
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from backend.data.mt5_connector import MT5Connector
+from sqlalchemy.orm import Session
+from backend.db.database import get_db
+from backend.db.models import Trade, Position
 
 router = APIRouter(prefix="/broker", tags=["broker"])
 
@@ -94,9 +95,67 @@ async def get_account() -> dict:
 
 
 @router.get("/positions")
-async def get_positions() -> dict:
+async def get_positions(db: Session = Depends(get_db)) -> dict:
     _ensure_connected()
-    return {"positions": _connector.get_open_positions()}
+    positions = _connector.get_open_positions()
+    # Upsert positions into DB for persistence
+    try:
+        for p in positions:
+            ticket = int(p.get("ticket") or 0)
+            if not ticket:
+                continue
+            existing = db.get(Position, ticket)
+            if existing:
+                existing.symbol = p.get("symbol")
+                existing.side = p.get("side")
+                existing.volume = float(p.get("volume", 0))
+                existing.price_open = float(p.get("price_open", 0))
+                existing.price_current = float(p.get("price_current", 0))
+                existing.tp = float(p.get("tp", 0))
+                existing.sl = float(p.get("sl", 0))
+                existing.swap = float(p.get("swap", 0))
+                existing.profit = float(p.get("profit", 0))
+            else:
+                db.add(Position(
+                    ticket=ticket,
+                    symbol=p.get("symbol"),
+                    side=p.get("side"),
+                    volume=float(p.get("volume", 0)),
+                    price_open=float(p.get("price_open", 0)),
+                    price_current=float(p.get("price_current", 0)),
+                    tp=float(p.get("tp", 0)),
+                    sl=float(p.get("sl", 0)),
+                    swap=float(p.get("swap", 0)),
+                    profit=float(p.get("profit", 0)),
+                ))
+        db.commit()
+    except Exception:
+        db.rollback()
+    return {"positions": positions}
+
+
+class ModifySLTPRequest(BaseModel):
+    sl: Optional[float] = Field(None, ge=0)
+    tp: Optional[float] = Field(None, ge=0)
+
+
+@router.put("/positions/{ticket}/sltp")
+async def update_sltp(ticket: int, req: ModifySLTPRequest, db: Session = Depends(get_db)) -> dict:
+    _ensure_connected()
+    res = _connector.modify_position_sl_tp(ticket=ticket, sl=req.sl, tp=req.tp)
+    if res.get("success"):
+        # reflect into DB
+        try:
+            pos = db.get(Position, ticket)
+            if pos:
+                if req.sl is not None:
+                    pos.sl = float(req.sl)
+                if req.tp is not None:
+                    pos.tp = float(req.tp)
+                db.commit()
+        except Exception:
+            db.rollback()
+    return res
 
 
 @router.get("/trades")
@@ -106,7 +165,7 @@ async def get_trades(limit: int = 20) -> dict:
 
 
 @router.post("/order/market")
-async def market_order(req: MarketOrderRequest) -> dict:
+async def market_order(req: MarketOrderRequest, db: Session = Depends(get_db)) -> dict:
     _ensure_connected()
     res = _connector.place_order(
         symbol=req.symbol,
@@ -115,56 +174,20 @@ async def market_order(req: MarketOrderRequest) -> dict:
         price=_connector.get_last_price(req.symbol),
         sl=req.sl or 0.0,
         tp=req.tp or 0.0,
-        comment=req.comment or "",
-        order_type="market",
+        comment="ui_market_order",
     )
-    return res
-
-
-# --- Charting & Depth ---
-@router.get("/candles")
-async def get_candles(symbol: str, tf: str = Query("M1"), limit: int = Query(500, ge=1, le=5000)) -> dict:
-    _ensure_connected()
-    data = _connector.get_candles(symbol, tf, limit)
-    return {"symbol": symbol, "timeframe": tf, "candles": data}
-
-
-@router.get("/depth")
-async def get_depth(symbol: str) -> dict:
-    _ensure_connected()
-    book = _connector.get_order_book(symbol)
-    return {"symbol": symbol, **book}
-
-
-@router.websocket("/stream")
-async def stream_ws(ws: WebSocket, symbol: str, tf: str = "M1"):
-    await ws.accept()
-    _ensure_connected()
-    try:
-        # prime data
-        candles = _connector.get_candles(symbol, tf, 200)
-        await ws.send_text(json.dumps({"type": "snapshot", "candles": candles}))
-        while True:
-            bid, ask = _connector.get_bid_ask(symbol)
-            last = _connector.get_last_price(symbol)
-            depth = _connector.get_order_book(symbol)
-            msg = {
-                "type": "tick",
-                "symbol": symbol,
-                "bid": bid,
-                "ask": ask,
-                "last": last,
-                "spread": (ask - bid) if (bid and ask) else 0,
-                "time": int(asyncio.get_event_loop().time()*1000),
-                "depth": depth,
-            }
-            await ws.send_text(json.dumps(msg))
-            await asyncio.sleep(0.25)
-    except WebSocketDisconnect:
-        return
-    except Exception:
-        # close quietly
+    # persist to DB if success
+    if isinstance(res, dict) and not res.get("error"):
         try:
-            await ws.close()
+            db.add(Trade(
+                broker_ticket=str(res.get("id")),
+                symbol=res.get("symbol"),
+                side=res.get("side"),
+                volume=float(res.get("quantity", 0.0)),
+                price=float(res.get("price", 0.0)),
+                profit=0.0,
+            ))
+            db.commit()
         except Exception:
-            pass
+            db.rollback()
+    return res

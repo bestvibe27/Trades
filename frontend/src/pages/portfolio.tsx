@@ -24,35 +24,120 @@ interface PortfolioData {
   };
 }
 
+interface DealRow {
+  id: number | string;
+  symbol: string;
+  side: 'buy'|'sell'|'other';
+  volume: number;
+  price: number;
+  profit: number;
+  time: string; // ISO
+}
+
+interface PositionRow {
+  symbol: string;
+  side: 'buy'|'sell'|'other';
+  volume: number;
+  price_open: number;
+  price_current: number;
+  tp: number;
+  sl: number;
+  ticket: number | null;
+  time: string | null; // ISO
+  swap: number;
+  profit: number;
+}
+
 const PortfolioPage: React.FC = () => {
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
+  const [positions, setPositions] = useState<PositionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [trades, setTrades] = useState<DealRow[]>([]);
 
   useEffect(() => {
     fetchPortfolio();
   }, []);
 
-  // Poll live account values every 10s
+  // Poll live account values and positions
   usePolling(() => fetchPortfolio(), 10000, false);
+  usePolling(async () => {
+    try {
+      const res = await tradingAPI.getBrokerPositions();
+      const list: PositionRow[] = (res.positions || []).slice();
+      // newest first
+      list.sort((a, b) => {
+        const at = a.time ? new Date(a.time).getTime() : 0;
+        const bt = b.time ? new Date(b.time).getTime() : 0;
+        return bt - at;
+      });
+      setPositions(list);
+      // also update unrealized from latest positions
+      setPortfolio(prev => prev ? { ...prev, unrealizedPnL: list.reduce((s, p) => s + (p.profit || 0), 0), totalPnL: (prev.realizedPnL || 0) + list.reduce((s, p) => s + (p.profit || 0), 0) } : prev);
+    } catch {}
+  }, 5000, false);
+
+  // Poll recent trades
+  usePolling(async () => {
+    try {
+      const res = await tradingAPI.getBrokerTrades(50);
+      const list: DealRow[] = (res.trades || []).map((d: any) => ({
+        id: d.id,
+        symbol: d.symbol,
+        side: d.side,
+        volume: d.volume,
+        price: d.price,
+        profit: d.profit ?? 0,
+        time: d.time,
+      }));
+      list.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+      setTrades(list);
+    } catch {}
+  }, 10000, false);
 
   const fetchPortfolio = async () => {
     try {
       setLoading(true);
-      // Fetch live account values from MT5 and map into portfolio view
-      const acc = await tradingAPI.getBrokerAccount();
+      // Fetch live account values + open positions from MT5
+      const [acc, posRes] = await Promise.all([
+        tradingAPI.getBrokerAccount(),
+        tradingAPI.getBrokerPositions()
+      ]);
       const equity = acc.equity ?? 0;
       const balance = acc.balance ?? 0;
       const free = acc.free_margin ?? 0;
       const used = Math.max(0, balance - free);
+      const posList: PositionRow[] = (posRes.positions || []).slice();
+      posList.sort((a, b) => {
+        const at = a.time ? new Date(a.time).getTime() : 0;
+        const bt = b.time ? new Date(b.time).getTime() : 0;
+        return bt - at;
+      });
+      setPositions(posList);
+      const unreal = posList.reduce((sum, p) => sum + (p.profit || 0), 0);
+      // initial trades load
+      try {
+        const res = await tradingAPI.getBrokerTrades(50);
+        const list: DealRow[] = (res.trades || []).map((d: any) => ({
+          id: d.id,
+          symbol: d.symbol,
+          side: d.side,
+          volume: d.volume,
+          price: d.price,
+          profit: d.profit ?? 0,
+          time: d.time,
+        }));
+        list.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+        setTrades(list);
+      } catch {}
 
       const portfolioData: PortfolioData = {
         totalEquity: equity,
         availableBalance: free,
         usedMargin: used,
-        unrealizedPnL: 0,
+        unrealizedPnL: unreal,
         realizedPnL: 0,
-        totalPnL: 0,
+        totalPnL: unreal,
         performance: {
           totalReturn: 0,
           dailyReturn: 0,
@@ -147,6 +232,51 @@ const PortfolioPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </section>
+
+        {/* Open Positions (live from MT5) */}
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}><h2>Open Positions</h2></div>
+          {positions.length === 0 ? (
+            <div className={styles.card}>No open positions</div>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Type</th>
+                    <th>Volume (Lot)</th>
+                    <th>Open Price</th>
+                    <th>Current Price</th>
+                    <th>T/P</th>
+                    <th>S/L</th>
+                    <th>Position ID</th>
+                    <th>Open Time</th>
+                    <th>Swap (USD)</th>
+                    <th>P/L (USD)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {positions.map((p, idx) => (
+                    <tr key={p.ticket ?? idx}>
+                      <td>{p.symbol}</td>
+                      <td className={p.side === 'buy' ? 'pl' : 'nl'}>{p.side?.toUpperCase()}</td>
+                      <td>{p.volume.toFixed(2)}</td>
+                      <td>{p.price_open.toFixed(5)}</td>
+                      <td>{p.price_current.toFixed(5)}</td>
+                      <td>{p.tp ? p.tp.toFixed(5) : '-'}</td>
+                      <td>{p.sl ? p.sl.toFixed(5) : '-'}</td>
+                      <td>{p.ticket ?? '-'}</td>
+                      <td>{p.time ? new Date(p.time).toLocaleString() : '-'}</td>
+                      <td>{p.swap?.toFixed(2)}</td>
+                      <td className={p.profit >= 0 ? 'pl' : 'nl'}>{p.profit >= 0 ? '+' : ''}{p.profit.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
         {/* P&L cards */}

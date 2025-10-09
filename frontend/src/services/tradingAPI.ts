@@ -150,16 +150,6 @@ class TradingAPI {
     return get(`${this.brokerUrl}/trades?limit=${limit}`);
   }
 
-  async getCandles(params: { symbol: string; tf?: string; limit?: number }): Promise<{ symbol: string; timeframe: string; candles: Array<{ time: number; open: number; high: number; low: number; close: number; tick_volume: number }>}> {
-    const tf = params.tf ?? 'M1';
-    const limit = params.limit ?? 500;
-    return get(`${this.brokerUrl}/candles?symbol=${encodeURIComponent(params.symbol)}&tf=${tf}&limit=${limit}`);
-  }
-
-  async getDepth(symbol: string): Promise<{ symbol: string; bids: Array<{price:number; volume:number}>; asks: Array<{price:number; volume:number}>}> {
-    return get(`${this.brokerUrl}/depth?symbol=${encodeURIComponent(symbol)}`);
-  }
-
   /**
    * Cancel an order
    */
