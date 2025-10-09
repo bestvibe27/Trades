@@ -293,50 +293,6 @@ class MT5Connector:
         except Exception:
             return []
 
-    def modify_position_sl_tp(self, ticket: int, sl: float | None = None, tp: float | None = None) -> Dict[str, Any]:
-        """Modify stop-loss and/or take-profit of an open position.
-
-        Returns {success: bool, ticket, sl, tp, error?}
-        """
-        if not self.connected:
-            return {"success": False, "error": "Not connected"}
-        if self.use_mock:
-            # Update mock position
-            for p in self._mock_positions:
-                if getattr(p, "ticket", None) == ticket:
-                    if sl is not None:
-                        setattr(p, "sl", float(sl))
-                    if tp is not None:
-                        setattr(p, "tp", float(tp))
-                    return {"success": True, "ticket": ticket, "sl": getattr(p, "sl", 0.0), "tp": getattr(p, "tp", 0.0)}
-            return {"success": False, "error": "Position not found"}
-        try:  # pragma: no cover
-            if not self._real_initialized:
-                self.connect()
-            if mt5 is None:
-                return {"success": False, "error": "MT5 module not available"}
-
-            # Read current position
-            pos = mt5.positions_get(ticket=ticket)
-            if not pos:
-                return {"success": False, "error": "Position not found"}
-            p0 = pos[0]
-            new_sl = float(sl) if sl is not None else float(getattr(p0, "sl", 0.0))
-            new_tp = float(tp) if tp is not None else float(getattr(p0, "tp", 0.0))
-
-            request = {
-                "action": getattr(mt5, "TRADE_ACTION_SLTP", 0),
-                "position": int(ticket),
-                "sl": new_sl,
-                "tp": new_tp,
-                "symbol": getattr(p0, "symbol", ""),
-            }
-            result = mt5.order_send(request)
-            if getattr(result, "retcode", 1) != getattr(mt5, "TRADE_RETCODE_DONE", 10009):
-                return {"success": False, "error": f"MT5 modify failed: {getattr(result, 'comment', '')} ({getattr(result, 'retcode', '')})"}
-            return {"success": True, "ticket": ticket, "sl": new_sl, "tp": new_tp}
-        except Exception as e:  # pragma: no cover
-            return {"success": False, "error": str(e)}
     def get_symbol_info(self, symbol: str) -> Optional[MT5SymbolInfo]:
         """Get symbol information."""
         if not self.connected:

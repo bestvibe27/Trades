@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from backend.data.mt5_connector import MT5Connector
 from sqlalchemy.orm import Session
 from backend.db.database import get_db
-from backend.db.models import Trade, Position
+from backend.db.models import Trade
 
 router = APIRouter(prefix="/broker", tags=["broker"])
 
@@ -95,67 +95,9 @@ async def get_account() -> dict:
 
 
 @router.get("/positions")
-async def get_positions(db: Session = Depends(get_db)) -> dict:
+async def get_positions() -> dict:
     _ensure_connected()
-    positions = _connector.get_open_positions()
-    # Upsert positions into DB for persistence
-    try:
-        for p in positions:
-            ticket = int(p.get("ticket") or 0)
-            if not ticket:
-                continue
-            existing = db.get(Position, ticket)
-            if existing:
-                existing.symbol = p.get("symbol")
-                existing.side = p.get("side")
-                existing.volume = float(p.get("volume", 0))
-                existing.price_open = float(p.get("price_open", 0))
-                existing.price_current = float(p.get("price_current", 0))
-                existing.tp = float(p.get("tp", 0))
-                existing.sl = float(p.get("sl", 0))
-                existing.swap = float(p.get("swap", 0))
-                existing.profit = float(p.get("profit", 0))
-            else:
-                db.add(Position(
-                    ticket=ticket,
-                    symbol=p.get("symbol"),
-                    side=p.get("side"),
-                    volume=float(p.get("volume", 0)),
-                    price_open=float(p.get("price_open", 0)),
-                    price_current=float(p.get("price_current", 0)),
-                    tp=float(p.get("tp", 0)),
-                    sl=float(p.get("sl", 0)),
-                    swap=float(p.get("swap", 0)),
-                    profit=float(p.get("profit", 0)),
-                ))
-        db.commit()
-    except Exception:
-        db.rollback()
-    return {"positions": positions}
-
-
-class ModifySLTPRequest(BaseModel):
-    sl: Optional[float] = Field(None, ge=0)
-    tp: Optional[float] = Field(None, ge=0)
-
-
-@router.put("/positions/{ticket}/sltp")
-async def update_sltp(ticket: int, req: ModifySLTPRequest, db: Session = Depends(get_db)) -> dict:
-    _ensure_connected()
-    res = _connector.modify_position_sl_tp(ticket=ticket, sl=req.sl, tp=req.tp)
-    if res.get("success"):
-        # reflect into DB
-        try:
-            pos = db.get(Position, ticket)
-            if pos:
-                if req.sl is not None:
-                    pos.sl = float(req.sl)
-                if req.tp is not None:
-                    pos.tp = float(req.tp)
-                db.commit()
-        except Exception:
-            db.rollback()
-    return res
+    return {"positions": _connector.get_open_positions()}
 
 
 @router.get("/trades")
