@@ -17,7 +17,18 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
-from dotenv import load_dotenv
+
+# Routers
+from backend.app.auth import router as auth_router
+from backend.app.market_data import router as market_router
+from backend.app.trading import router as trading_router
+from backend.app.portfolio import router as portfolio_router
+from backend.app.strategies import router as strategies_router
+# Broker router is optional if MT5 connector not available; import guarded below
+try:
+    from backend.app.broker import router as broker_router  # type: ignore
+except Exception:  # pragma: no cover - broker may not import without MT5
+    broker_router = None  # type: ignore
 
 
 def _configure_logging() -> None:
@@ -50,11 +61,6 @@ def create_app() -> FastAPI:
     Returns:
         FastAPI: Configured application.
     """
-    # Load environment variables from a .env file if present (project root or backend/)
-    try:
-        load_dotenv()  # loads nearest .env in the working directory tree
-    except Exception:
-        pass
     _configure_logging()
 
     app = FastAPI(
@@ -75,25 +81,18 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Routers
-    try:
-        from backend.app import auth as auth_router
-        from backend.app import market_data as market_router
-        from backend.app import trading as trading_router
-        from backend.app import portfolio as portfolio_router
-        from backend.app import broker as broker_router
-
-        app.include_router(auth_router.router)
-        app.include_router(market_router.router)
-        app.include_router(trading_router.router)
-        app.include_router(portfolio_router.router)
-        app.include_router(broker_router.router)
-    except Exception as exc:
-        logging.getLogger("api").warning(f"Failed to include routers: {exc}")
-
     @app.get("/healthz", tags=["system"])  # Simple health endpoint for probes
     async def healthz() -> JSONResponse:
         return JSONResponse({"status": "ok"})
+
+    # Mount feature routers
+    app.include_router(auth_router)
+    app.include_router(market_router)
+    app.include_router(trading_router)
+    app.include_router(portfolio_router)
+    app.include_router(strategies_router)
+    if broker_router is not None:
+        app.include_router(broker_router)
 
     return app
 
