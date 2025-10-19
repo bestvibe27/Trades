@@ -14,6 +14,10 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from dataclasses import dataclass
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # MetaTrader5 is optional at runtime; use mock when not installed or disabled
 try:  # pragma: no cover
@@ -167,19 +171,41 @@ class MT5Connector:
         self.account_info: Optional[MT5AccountInfo] = None
         self._real_initialized = False
         
-        # Mock data for development
+        # Mock data for development - all supported instruments
         self._mock_symbols = [
-            "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD",
-            "EURGBP", "EURJPY", "GBPJPY", "XAUUSD", "XAGUSD", "USOIL", "UKOIL",
-            "BTCUSD", "ETHUSD", "LTCUSD", "XRPUSD"
+            # Forex pairs
+            "EURUSDm", "GBPUSDm", "USDJPYm", "USDCHFm", "USDCADm", "AUDUSDm", "NZDUSDm",
+            "EURGBPm", "EURJPYm", "EURCHFm", "GBPJPYm", "GBPCHFm", "AUDJPYm", "CADJPYm",
+            "CHFJPYm", "NZDJPYm", "EURNZDm", "EURCADm", "GBPCADm", "AUDNZDm",
+            # Commodities
+            "XAUUSDm", "XAGUSDm", "XBRUSDm", "XTIUSDm", "XNGUSDm", "XPDUSDm", "XPTUSDm",
+            # Indices
+            "US30m", "US500m", "USTECm", "GER40m", "UK100m", "FRA40m", "JPN225m", "HK50m", "AUS200m",
+            # Crypto
+            "BTCUSDm", "ETHUSDm", "LTCUSDm", "XRPUSDm", "BCHUSDm", "ADAUSDm", "DOGEUSDm", "SOLUSDm",
+            # Stocks
+            "AAPLm", "TSLAm", "MSFTm", "AMZNm", "METAm", "GOOGLm", "NVDAm", "NFLXm", "JPMm", "BRK.Bm"
         ]
         self._mock_prices: Dict[str, float] = {
-            "EURUSD": 1.0950, "GBPUSD": 1.2750, "USDJPY": 149.50,
-            "USDCHF": 0.8750, "AUDUSD": 0.6550, "USDCAD": 1.3650,
-            "NZDUSD": 0.6050, "EURGBP": 0.8600, "EURJPY": 163.75,
-            "GBPJPY": 190.25, "XAUUSD": 2025.50, "XAGUSD": 24.25,
-            "USOIL": 75.50, "UKOIL": 80.25, "BTCUSD": 43500.00,
-            "ETHUSD": 2650.00, "LTCUSD": 72.50, "XRPUSD": 0.6250
+            # Forex pairs
+            "EURUSDm": 1.0950, "GBPUSDm": 1.2750, "USDJPYm": 149.50,
+            "USDCHFm": 0.8750, "USDCADm": 1.3650, "AUDUSDm": 0.6550, "NZDUSDm": 0.6050,
+            "EURGBPm": 0.8600, "EURJPYm": 163.75, "EURCHFm": 0.9600, "GBPJPYm": 190.25,
+            "GBPCHFm": 1.1000, "AUDJPYm": 98.50, "CADJPYm": 109.75, "CHFJPYm": 170.25,
+            "NZDJPYm": 90.50, "EURNZDm": 1.8100, "EURCADm": 1.4950, "GBPCADm": 1.7400, "AUDNZDm": 1.0800,
+            # Commodities
+            "XAUUSDm": 2025.50, "XAGUSDm": 24.25, "XBRUSDm": 80.25, "XTIUSDm": 75.50,
+            "XNGUSDm": 2.85, "XPDUSDm": 1050.00, "XPTUSDm": 950.00,
+            # Indices
+            "US30m": 37500.0, "US500m": 4750.0, "USTECm": 16500.0, "GER40m": 18500.0,
+            "UK100m": 7500.0, "FRA40m": 7200.0, "JPN225m": 38500.0, "HK50m": 18500.0, "AUS200m": 7200.0,
+            # Crypto
+            "BTCUSDm": 43500.00, "ETHUSDm": 2650.00, "LTCUSDm": 72.50, "XRPUSDm": 0.6250,
+            "BCHUSDm": 245.00, "ADAUSDm": 0.4850, "DOGEUSDm": 0.0850, "SOLUSDm": 98.50,
+            # Stocks
+            "AAPLm": 195.50, "TSLAm": 245.00, "MSFTm": 375.00, "AMZNm": 155.00,
+            "METAm": 325.00, "GOOGLm": 145.00, "NVDAm": 485.00, "NFLXm": 485.00,
+            "JPMm": 165.00, "BRK.Bm": 365.00
         }
         self._mock_orders: List[MT5Order] = []
         self._mock_positions: List[MT5Position] = []
@@ -202,7 +228,26 @@ class MT5Connector:
                 return True
 
             if not self.server or not self.login or not self.password:
-                raise RuntimeError("MT5 credentials are missing: MT5_SERVER/MT5_LOGIN/MT5_PASSWORD")
+                missing_vars = []
+                if not self.server:
+                    missing_vars.append("MT5_SERVER")
+                if not self.login:
+                    missing_vars.append("MT5_LOGIN")
+                if not self.password:
+                    missing_vars.append("MT5_PASSWORD")
+                
+                logger.error(f"❌ MT5 credentials are missing: {', '.join(missing_vars)}")
+                logger.error("💡 Please set the following environment variables:")
+                logger.error("   - MT5_SERVER=YourBrokerServer")
+                logger.error("   - MT5_LOGIN=YourAccountNumber")
+                logger.error("   - MT5_PASSWORD=YourPassword")
+                logger.error("   Or create a .env file with these variables")
+                logger.error("🔄 Falling back to mock mode for development")
+                
+                self.use_mock = True
+                self.connected = True
+                self._setup_mock_account()
+                return True
 
             logger.info(f"Connecting to MT5 server: {self.server}")
             if not mt5.initialize():  # type: ignore
@@ -215,21 +260,45 @@ class MT5Connector:
 
             self.connected = True
             self._real_initialized = True
-            # Best-effort to populate minimal account info
-            self.account_info = MT5AccountInfo(
-                login=int(self.login),
-                server=str(self.server),
-                name="Exness MT5",
-                currency="USD",
-                leverage=100,
-                limit_orders=100,
-                margin_so_mode=0,
-                trade_allowed=True,
-                trade_expert=True,
-                margin_mode=0,
-                currency_digits=2,
-                fifo_close=False,
-            )
+            
+            # Get real account info
+            account_info = mt5.account_info()  # type: ignore
+            if account_info:
+                self.account_info = MT5AccountInfo(
+                    login=int(self.login),
+                    server=str(self.server),
+                    name=getattr(account_info, 'name', 'MT5 Account'),
+                    currency=getattr(account_info, 'currency', 'USD'),
+                    leverage=getattr(account_info, 'leverage', 100),
+                    limit_orders=getattr(account_info, 'limit_orders', 100),
+                    margin_so_mode=getattr(account_info, 'margin_so_mode', 0),
+                    trade_allowed=getattr(account_info, 'trade_allowed', True),
+                    trade_expert=getattr(account_info, 'trade_expert', True),
+                    margin_mode=getattr(account_info, 'margin_mode', 0),
+                    currency_digits=getattr(account_info, 'currency_digits', 2),
+                    fifo_close=getattr(account_info, 'fifo_close', False),
+                )
+                logger.info(f"✅ Connected to MT5 account: {self.account_info.name} (Login: {self.account_info.login})")
+                logger.info(f"💰 Balance: {getattr(account_info, 'balance', 0):.2f} {self.account_info.currency}")
+                logger.info(f"📊 Equity: {getattr(account_info, 'equity', 0):.2f} {self.account_info.currency}")
+            else:
+                # Fallback if account_info fails
+                self.account_info = MT5AccountInfo(
+                    login=int(self.login),
+                    server=str(self.server),
+                    name="MT5 Account",
+                    currency="USD",
+                    leverage=100,
+                    limit_orders=100,
+                    margin_so_mode=0,
+                    trade_allowed=True,
+                    trade_expert=True,
+                    margin_mode=0,
+                    currency_digits=2,
+                    fifo_close=False,
+                )
+                logger.info(f"✅ Connected to MT5 server: {self.server} (Login: {self.login})")
+            
             return True
 
         except Exception as e:
@@ -311,10 +380,15 @@ class MT5Connector:
             return None
         
         # Mock symbol info based on symbol type
-        if symbol in ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD"]:
+        if symbol in ["EURUSDm", "GBPUSDm", "USDJPYm", "USDCHFm", "AUDUSDm", "USDCADm", "NZDUSDm",
+                     "EURGBPm", "EURJPYm", "EURCHFm", "GBPJPYm", "GBPCHFm", "AUDJPYm", "CADJPYm",
+                     "CHFJPYm", "NZDJPYm", "EURNZDm", "EURCADm", "GBPCADm", "AUDNZDm"]:
             # Forex pairs
             base_currency = symbol[:3]
-            quote_currency = symbol[3:]
+            quote_currency = symbol[3:6]  # Remove 'm' suffix
+            digits = 5 if quote_currency != "JPY" else 3
+            point = 0.00001 if quote_currency != "JPY" else 0.001
+            tick_size = 0.00001 if quote_currency != "JPY" else 0.001
             return MT5SymbolInfo(
                 symbol=symbol,
                 name=f"{base_currency}/{quote_currency}",
@@ -322,8 +396,8 @@ class MT5Connector:
                 currency_profit=quote_currency,
                 currency_margin=quote_currency,
                 contract_size=100000.0,
-                digits=5,
-                point=0.00001,
+                digits=digits,
+                point=point,
                 spread=20,
                 trade_mode=4,  # SYMBOL_TRADE_MODE_FULL
                 trade_stops_level=0,
@@ -335,7 +409,7 @@ class MT5Connector:
                 starting=datetime(1970, 1, 1, tzinfo=timezone.utc),
                 expiration=datetime(2030, 12, 31, tzinfo=timezone.utc),
                 trade_tick_value=1.0,
-                trade_tick_size=0.00001,
+                trade_tick_size=tick_size,
                 trade_contract_size=100000.0,
                 trade_calc_mode=0,  # SYMBOL_CALC_MODE_FOREX
                 trade_mode_time=0,
@@ -353,8 +427,11 @@ class MT5Connector:
                 price_limit_min=0.0,
                 price_limit_max=0.0
             )
-        elif symbol in ["XAUUSD", "XAGUSD"]:
-            # Precious metals
+        elif symbol in ["XAUUSDm", "XAGUSDm", "XBRUSDm", "XTIUSDm", "XNGUSDm", "XPDUSDm", "XPTUSDm"]:
+            # Commodities
+            digits = 2 if symbol in ["XAUUSDm", "XBRUSDm", "XTIUSDm", "XPDUSDm", "XPTUSDm"] else 3
+            point = 0.01 if symbol in ["XAUUSDm", "XBRUSDm", "XTIUSDm", "XPDUSDm", "XPTUSDm"] else 0.001
+            tick_size = 0.01 if symbol in ["XAUUSDm", "XBRUSDm", "XTIUSDm", "XPDUSDm", "XPTUSDm"] else 0.001
             return MT5SymbolInfo(
                 symbol=symbol,
                 name=symbol,
@@ -362,8 +439,8 @@ class MT5Connector:
                 currency_profit="USD",
                 currency_margin="USD",
                 contract_size=100.0,
-                digits=2,
-                point=0.01,
+                digits=digits,
+                point=point,
                 spread=30,
                 trade_mode=4,
                 trade_stops_level=0,
@@ -375,8 +452,134 @@ class MT5Connector:
                 starting=datetime(1970, 1, 1, tzinfo=timezone.utc),
                 expiration=datetime(2030, 12, 31, tzinfo=timezone.utc),
                 trade_tick_value=1.0,
-                trade_tick_size=0.01,
+                trade_tick_size=tick_size,
                 trade_contract_size=100.0,
+                trade_calc_mode=1,  # SYMBOL_CALC_MODE_CFD
+                trade_mode_time=0,
+                trade_flags=0,
+                margin_initial=0.0,
+                margin_maintenance=0.0,
+                session_deals=0,
+                session_buy_orders=0,
+                session_sell_orders=0,
+                volume_min=0.01,
+                volume_max=100.0,
+                volume_step=0.01,
+                volume_limit=0,
+                margin_hedged=0.0,
+                price_limit_min=0.0,
+                price_limit_max=0.0
+            )
+        elif symbol in ["US30m", "US500m", "USTECm", "GER40m", "UK100m", "FRA40m", "JPN225m", "HK50m", "AUS200m"]:
+            # Indices
+            digits = 1 if symbol in ["JPN225m", "HK50m"] else 1
+            point = 1.0 if symbol in ["JPN225m", "HK50m"] else 0.1
+            tick_size = 1.0 if symbol in ["JPN225m", "HK50m"] else 0.1
+            return MT5SymbolInfo(
+                symbol=symbol,
+                name=symbol,
+                currency_base="USD" if symbol.startswith("US") else ("EUR" if symbol.startswith("GER") or symbol.startswith("FRA") else ("GBP" if symbol.startswith("UK") else ("JPY" if symbol.startswith("JPN") else ("HKD" if symbol.startswith("HK") else "AUD")))),
+                currency_profit="USD" if symbol.startswith("US") else ("EUR" if symbol.startswith("GER") or symbol.startswith("FRA") else ("GBP" if symbol.startswith("UK") else ("JPY" if symbol.startswith("JPN") else ("HKD" if symbol.startswith("HK") else "AUD")))),
+                currency_margin="USD" if symbol.startswith("US") else ("EUR" if symbol.startswith("GER") or symbol.startswith("FRA") else ("GBP" if symbol.startswith("UK") else ("JPY" if symbol.startswith("JPN") else ("HKD" if symbol.startswith("HK") else "AUD")))),
+                contract_size=1.0,
+                digits=digits,
+                point=point,
+                spread=50,
+                trade_mode=4,
+                trade_stops_level=0,
+                trade_freeze_level=0,
+                trade_exemode=1,
+                swap_mode=0,
+                swap_long=0.0,
+                swap_short=0.0,
+                starting=datetime(1970, 1, 1, tzinfo=timezone.utc),
+                expiration=datetime(2030, 12, 31, tzinfo=timezone.utc),
+                trade_tick_value=1.0,
+                trade_tick_size=tick_size,
+                trade_contract_size=1.0,
+                trade_calc_mode=1,  # SYMBOL_CALC_MODE_CFD
+                trade_mode_time=0,
+                trade_flags=0,
+                margin_initial=0.0,
+                margin_maintenance=0.0,
+                session_deals=0,
+                session_buy_orders=0,
+                session_sell_orders=0,
+                volume_min=0.01,
+                volume_max=100.0,
+                volume_step=0.01,
+                volume_limit=0,
+                margin_hedged=0.0,
+                price_limit_min=0.0,
+                price_limit_max=0.0
+            )
+        elif symbol in ["BTCUSDm", "ETHUSDm", "LTCUSDm", "XRPUSDm", "BCHUSDm", "ADAUSDm", "DOGEUSDm", "SOLUSDm"]:
+            # Crypto
+            digits = 2 if symbol in ["BTCUSDm", "ETHUSDm", "LTCUSDm", "BCHUSDm", "SOLUSDm"] else 4
+            point = 0.01 if symbol in ["BTCUSDm", "ETHUSDm", "LTCUSDm", "BCHUSDm", "SOLUSDm"] else 0.0001
+            tick_size = 0.01 if symbol in ["BTCUSDm", "ETHUSDm", "LTCUSDm", "BCHUSDm", "SOLUSDm"] else 0.0001
+            return MT5SymbolInfo(
+                symbol=symbol,
+                name=symbol,
+                currency_base="USD",
+                currency_profit="USD",
+                currency_margin="USD",
+                contract_size=1.0,
+                digits=digits,
+                point=point,
+                spread=100,
+                trade_mode=4,
+                trade_stops_level=0,
+                trade_freeze_level=0,
+                trade_exemode=1,
+                swap_mode=0,
+                swap_long=0.0,
+                swap_short=0.0,
+                starting=datetime(1970, 1, 1, tzinfo=timezone.utc),
+                expiration=datetime(2030, 12, 31, tzinfo=timezone.utc),
+                trade_tick_value=1.0,
+                trade_tick_size=tick_size,
+                trade_contract_size=1.0,
+                trade_calc_mode=1,  # SYMBOL_CALC_MODE_CFD
+                trade_mode_time=0,
+                trade_flags=0,
+                margin_initial=0.0,
+                margin_maintenance=0.0,
+                session_deals=0,
+                session_buy_orders=0,
+                session_sell_orders=0,
+                volume_min=0.01,
+                volume_max=100.0,
+                volume_step=0.01,
+                volume_limit=0,
+                margin_hedged=0.0,
+                price_limit_min=0.0,
+                price_limit_max=0.0
+            )
+        elif symbol in ["AAPLm", "TSLAm", "MSFTm", "AMZNm", "METAm", "GOOGLm", "NVDAm", "NFLXm", "JPMm", "BRK.Bm"]:
+            # Stocks
+            return MT5SymbolInfo(
+                symbol=symbol,
+                name=symbol,
+                currency_base="USD",
+                currency_profit="USD",
+                currency_margin="USD",
+                contract_size=1.0,
+                digits=2,
+                point=0.01,
+                spread=10,
+                trade_mode=4,
+                trade_stops_level=0,
+                trade_freeze_level=0,
+                trade_exemode=1,
+                swap_mode=0,
+                swap_long=0.0,
+                swap_short=0.0,
+                starting=datetime(1970, 1, 1, tzinfo=timezone.utc),
+                expiration=datetime(2030, 12, 31, tzinfo=timezone.utc),
+                trade_tick_value=1.0,
+                trade_tick_size=0.01,
+                trade_contract_size=1.0,
                 trade_calc_mode=1,  # SYMBOL_CALC_MODE_CFD
                 trade_mode_time=0,
                 trade_flags=0,

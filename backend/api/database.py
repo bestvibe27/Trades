@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, Float, Integer, String, Text, create_engine,
+    Boolean, Column, DateTime, Float, Integer, String, Text, Numeric, Interval, create_engine,
     func, select, update, delete, insert
 )
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -107,22 +107,35 @@ class Position(Base):
 
 
 class Trade(Base):
-    """Completed trade model."""
+    """Enhanced trade model matching the database schema."""
     __tablename__ = "trades"
     
-    id = Column(String, primary_key=True)
-    user_id = Column(String, nullable=False, index=True)
-    strategy_id = Column(String, index=True)
-    order_id = Column(String, nullable=False)
-    symbol = Column(String, nullable=False)
-    side = Column(String, nullable=False)  # buy/sell
-    quantity = Column(Float, nullable=False)
-    entry_price = Column(Float, nullable=False)
-    exit_price = Column(Float, nullable=False)
-    pnl = Column(Float, nullable=False)
-    commission = Column(Float, default=0.0)
-    entry_time = Column(DateTime, nullable=False)
-    exit_time = Column(DateTime, nullable=False)
+    trade_id = Column(Integer, primary_key=True, autoincrement=True)
+    account_id = Column(Integer, nullable=True)
+    strategy_id = Column(Integer, nullable=True)
+    symbol = Column(String(10), nullable=False)
+    trade_type = Column(String(10), nullable=True)  # BUY/SELL
+    volume = Column(Numeric(10, 2), nullable=True)
+    open_price = Column(Numeric(10, 2), nullable=True)
+    close_price = Column(Numeric(10, 2), nullable=True)
+    stop_loss = Column(Numeric(10, 2), nullable=True)
+    take_profit = Column(Numeric(10, 2), nullable=True)
+    commission = Column(Numeric(10, 2), nullable=True, default=0.00)
+    swap = Column(Numeric(10, 2), nullable=True, default=0.00)
+    profit_loss = Column(Numeric(10, 2), nullable=True)
+    status = Column(String(10), nullable=True, default='OPEN')  # OPEN/CLOSED/CANCELLED/PENDING
+    order_id = Column(String(50), nullable=True)
+    execution_price = Column(Numeric(10, 2), nullable=True)
+    execution_time = Column(DateTime, nullable=True)
+    source = Column(String(20), nullable=True, default='AI')  # AI/MANUAL/SIGNAL/BACKTEST
+    base_currency = Column(String(10), nullable=True, default='USD')
+    profit_currency = Column(String(10), nullable=True, default='USD')
+    risk_reward_ratio = Column(Numeric(5, 2), nullable=True)
+    pip_gain = Column(Numeric(10, 2), nullable=True)
+    duration = Column(Interval, nullable=True)
+    notes = Column(Text, nullable=True)
+    open_time = Column(DateTime, nullable=True, default=func.now())
+    close_time = Column(DateTime, nullable=True)
 
 
 class BacktestResult(Base):
@@ -255,7 +268,7 @@ class InMemoryDB:
 class DatabaseManager:
     """Database connection and session manager."""
     
-    def __init__(self, database_url: Optional[str] = None, use_memory: bool = True):
+    def __init__(self, database_url: Optional[str] = None, use_memory: bool = False):
         """Initialize database manager.
         
         Args:
@@ -263,7 +276,7 @@ class DatabaseManager:
             use_memory: Use in-memory database for development
         """
         self.database_url = database_url or os.getenv("DATABASE_URL")
-        self.use_memory = use_memory or not self.database_url
+        self.use_memory = bool(use_memory) or not self.database_url
         
         if self.use_memory:
             logger.info("Using in-memory database")
@@ -281,22 +294,29 @@ class DatabaseManager:
         """Setup SQL database connections."""
         try:
             # Create sync engine
-            self.engine = create_engine(
-                self.database_url,
-                poolclass=StaticPool,
-                connect_args={"check_same_thread": False} if "sqlite" in self.database_url else {}
-            )
+            if "sqlite" in self.database_url:
+                self.engine = create_engine(
+                    self.database_url,
+                    poolclass=StaticPool,
+                    connect_args={"check_same_thread": False}
+                )
+            else:
+                # Use default pooling for Postgres and others
+                self.engine = create_engine(self.database_url)
             
             # Create async engine
             async_url = self.database_url.replace("sqlite://", "sqlite+aiosqlite://")
             if "postgresql://" in self.database_url:
                 async_url = self.database_url.replace("postgresql://", "postgresql+asyncpg://")
             
-            self.async_engine = create_async_engine(
-                async_url,
-                poolclass=StaticPool,
-                connect_args={"check_same_thread": False} if "sqlite" in async_url else {}
-            )
+            if "sqlite+aiosqlite" in async_url:
+                self.async_engine = create_async_engine(
+                    async_url,
+                    poolclass=StaticPool,
+                    connect_args={"check_same_thread": False}
+                )
+            else:
+                self.async_engine = create_async_engine(async_url)
             
             # Create session makers
             self.SessionLocal = sessionmaker(
@@ -379,7 +399,8 @@ class DatabaseManager:
 
 
 # Global database manager instance
-db_manager = DatabaseManager()
+# Prefer SQL database when DATABASE_URL is provided
+db_manager = DatabaseManager(use_memory=False)
 
 # Convenience functions for backward compatibility
 def get_db():

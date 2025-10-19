@@ -3,6 +3,7 @@ import Layout from '../components/common/Layout';
 import { get } from '../services/api';
 import tradingAPI from '../services/tradingAPI';
 import { usePolling } from '../hooks/usePolling';
+import { TRADING_SYMBOLS } from '../utils/constants';
 import styles from '../styles/Trading.module.css';
 
 interface Position {
@@ -27,6 +28,9 @@ interface Order {
   price: number;
   status: string;
   createdAt: string;
+  profitLoss?: number;
+  commission?: number;
+  source?: string;
 }
 
 const TradingPage: React.FC = () => {
@@ -55,7 +59,7 @@ const TradingPage: React.FC = () => {
     fetchSymbols().then(() => {
       // If default symbol not present, try a common fallback among loaded symbols
       setTimeout(() => {
-        const commons = ['EURUSDm','XAUUSDm','USDJPYm','GBPUSDm'];
+        const commons = ['EURUSDm','XAUUSDm','USDJPYm','GBPUSDm','BTCUSDm','AAPLm'];
         if (!symbols.includes(qSymbol)) {
           const pick = commons.find(c => symbols.includes(c));
           if (pick) {
@@ -101,18 +105,36 @@ const TradingPage: React.FC = () => {
 
   const fetchTrades = async () => {
     try {
-      const res = await tradingAPI.getBrokerTrades(20);
-      // Map to existing Order UI shape
-      const mapped: Order[] = (res.trades || []).map((d: any) => ({
-        id: String(d.id ?? ''),
-        symbol: d.symbol,
-        side: (d.side || '').toLowerCase() === 'buy' ? 'buy' : 'sell',
-        quantity: Number(d.volume || 0),
-        price: Number(d.price || 0),
-        status: 'filled',
-        createdAt: d.time || new Date().toISOString(),
-      }));
-      setOrders(mapped);
+      // Try to get enhanced database trades first, fallback to broker trades
+      try {
+        const res = await tradingAPI.getBrokerDatabaseTrades(20);
+        const mapped: Order[] = (res.trades || []).map((d: any) => ({
+          id: String(d.trade_id ?? ''),
+          symbol: d.symbol,
+          side: (d.side || '').toLowerCase() === 'buy' ? 'buy' : 'sell',
+          quantity: Number(d.volume || 0),
+          price: Number(d.execution_price || d.open_price || 0),
+          status: d.status?.toLowerCase() || 'filled',
+          createdAt: d.execution_time || d.open_time || new Date().toISOString(),
+          profitLoss: d.profit_loss != null ? Number(d.profit_loss) : undefined,
+          commission: d.commission != null ? Number(d.commission) : undefined,
+          source: d.source
+        }));
+        setOrders(mapped);
+      } catch {
+        // Fallback to broker trades
+        const res = await tradingAPI.getBrokerTrades(20);
+        const mapped: Order[] = (res.trades || []).map((d: any) => ({
+          id: String(d.id ?? ''),
+          symbol: d.symbol,
+          side: (d.side || '').toLowerCase() === 'buy' ? 'buy' : 'sell',
+          quantity: Number(d.volume || 0),
+          price: Number(d.price || 0),
+          status: 'filled',
+          createdAt: d.time || new Date().toISOString(),
+        }));
+        setOrders(mapped);
+      }
     } catch {}
   };
 
@@ -168,11 +190,13 @@ const TradingPage: React.FC = () => {
     try {
       setSubmitting(true);
       setUiError('');
+      
       // Validate quote
       if (!qQuote || !isFinite(qQuote.bid) || !isFinite(qQuote.ask) || qQuote.bid <= 0 || qQuote.ask <= 0) {
         setUiError('Cannot place order: quote is unavailable or zero. Check symbol.');
         return;
       }
+      
       // Validate/snap volume
       const min = symInfo?.volume_min ?? 0.01;
       const step = symInfo?.volume_step ?? 0.01;
@@ -181,13 +205,36 @@ const TradingPage: React.FC = () => {
       const snapped = Math.max(min, Math.min(max, Math.floor(vol / step) * step));
       if (snapped !== qVolume) setQVolume(Number(snapped.toFixed(2)));
 
-      const res = await tradingAPI.placeBrokerMarketOrder({ symbol: qSymbol, side, volume: snapped });
-      await fetchData();
-      await fetchQuote(qSymbol);
-      await fetchAccount();
+      // Execute the trade
+      const res = await tradingAPI.placeBrokerMarketOrder({ 
+        symbol: qSymbol, 
+        side, 
+        volume: snapped,
+        comment: `Manual ${side.toUpperCase()} order from UI`
+      });
+      
+      // Check if trade was successful
+      if (res.success) {
+        // Show success message
+        setUiError(`✅ Trade executed successfully! ${side.toUpperCase()} ${snapped} lots of ${qSymbol} at ${res.price?.toFixed(5) || 'market price'}`);
+        
+        // Refresh data to show the new trade
+        await Promise.all([
+          fetchData(),
+          fetchQuote(qSymbol),
+          fetchAccount(),
+          fetchPositions()
+        ]);
+        
+        // Clear success message after 5 seconds
+        setTimeout(() => setUiError(''), 5000);
+      } else {
+        setUiError(`❌ Trade failed: ${res.error || 'Unknown error'}`);
+      }
+      
       return res;
     } catch (e) {
-      setUiError(String(e));
+      setUiError(`❌ Error placing order: ${String(e)}`);
     } finally {
       setSubmitting(false);
     }
@@ -259,22 +306,43 @@ const TradingPage: React.FC = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
               <div>
                 <label style={{ fontSize: 12, opacity: 0.85 }}>Symbol</label>
-                <input
+                <select
                   className="input"
-                  list="symbolsList"
                   value={qSymbol}
                   onChange={(e) => {
-                    const v = e.target.value.toUpperCase();
+                    const v = e.target.value;
                     setQSymbol(v);
                     fetchQuote(v);
                     fetchSymbolInfo(v);
                   }}
-                />
-                <datalist id="symbolsList">
-                  {symbols.slice(0, 5000).map((s) => (
-                    <option key={s} value={s} />
-                  ))}
-                </datalist>
+                  style={{ width: '100%' }}
+                >
+                  <optgroup label="Forex">
+                    {TRADING_SYMBOLS.FOREX.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Commodities">
+                    {TRADING_SYMBOLS.COMMODITIES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Indices">
+                    {TRADING_SYMBOLS.INDICES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Crypto">
+                    {TRADING_SYMBOLS.CRYPTO.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Stocks">
+                    {TRADING_SYMBOLS.STOCKS.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </optgroup>
+                </select>
               </div>
               <div>
                 <label style={{ fontSize: 12, opacity: 0.85 }}>Volume (lots)</label>
@@ -383,26 +451,56 @@ const TradingPage: React.FC = () => {
               <table className={styles.table}>
                 <thead>
                   <tr>
+                    <th>Trade ID</th>
                     <th>Symbol</th>
                     <th>Side</th>
-                    <th>Quantity</th>
+                    <th>Volume</th>
                     <th>Price</th>
+                    <th>P/L</th>
+                    <th>Commission</th>
                     <th>Status</th>
+                    <th>Source</th>
                     <th>Time</th>
                   </tr>
                 </thead>
                 <tbody>
                   {orders.slice(0, 10).map((order) => (
                     <tr key={order.id}>
+                      <td>#{order.id}</td>
                       <td>{order.symbol}</td>
                       <td>
                         <span className={`${styles.badge} ${order.side === 'buy' ? styles.badgeBuy : styles.badgeSell}`}>
                           {order.side.toUpperCase()}
                         </span>
                       </td>
-                      <td>{order.quantity}</td>
-                      <td>${order.price.toFixed(4)}</td>
-                      <td><span className={styles.badge}>{order.status.toUpperCase()}</span></td>
+                      <td>{order.quantity.toFixed(2)}</td>
+                      <td>{order.price.toFixed(5)}</td>
+                      <td className={typeof order.profitLoss === 'number' ? (order.profitLoss >= 0 ? 'pl' : 'nl') : ''}>
+                        {typeof order.profitLoss === 'number' ? 
+                          (order.profitLoss >= 0 ? '+' : '') + order.profitLoss.toFixed(2) : 
+                          '-'
+                        }
+                      </td>
+                      <td>{typeof order.commission === 'number' ? order.commission.toFixed(2) : '0.00'}</td>
+                      <td>
+                        <span className={`${styles.badge} ${
+                          order.status === 'open' ? styles.badgeOpen :
+                          order.status === 'closed' ? styles.badgeClosed :
+                          order.status === 'cancelled' ? styles.badgeCancelled :
+                          styles.badgePending
+                        }`}>
+                          {order.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={styles.badge} style={{ 
+                          backgroundColor: order.source === 'MANUAL' ? '#4CAF50' : 
+                                          order.source === 'AI' ? '#2196F3' :
+                                          order.source === 'SIGNAL' ? '#FF9800' : '#9E9E9E'
+                        }}>
+                          {order.source || 'UNKNOWN'}
+                        </span>
+                      </td>
                       <td>{new Date(order.createdAt).toLocaleString()}</td>
                     </tr>
                   ))}

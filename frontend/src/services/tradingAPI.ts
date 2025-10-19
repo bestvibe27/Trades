@@ -150,6 +150,10 @@ class TradingAPI {
     return get(`${this.brokerUrl}/trades?limit=${limit}`);
   }
 
+  async getBrokerDatabaseTrades(limit = 20): Promise<{ trades: Array<{ trade_id: number; symbol: string; side: string; volume: number; open_price: number; execution_price: number; status: string; execution_time: string; profit_loss?: number; commission: number; source: string }>; total: number }>{
+    return get(`${this.brokerUrl}/trades/database?limit=${limit}`);
+  }
+
   /**
    * Cancel an order
    */

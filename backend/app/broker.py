@@ -1,14 +1,15 @@
 """Broker (Exness MT5) API router."""
 from __future__ import annotations
 
+import logging
 from typing import Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from backend.data.mt5_connector import MT5Connector
 from sqlalchemy.orm import Session
-from backend.db.database import get_db
-from backend.db.models import Trade
+from datetime import datetime
+from backend.api.database import get_db, Trade
 
 router = APIRouter(prefix="/broker", tags=["broker"])
 
@@ -19,9 +20,10 @@ def _ensure_connected() -> None:
     try:
         if not _connector.is_connected():
             _connector.connect()
-    except Exception:
-        # Swallow exceptions here; detailed error is exposed via get_last_error
-        pass
+    except Exception as e:
+        # Log the error but don't fail - let the endpoint handle it gracefully
+        logger = logging.getLogger(__name__)
+        logger.warning(f"MT5 connection failed: {e}")
 
 
 class MarketOrderRequest(BaseModel):
@@ -91,6 +93,8 @@ async def get_account() -> dict:
         "balance": _connector.get_balance(),
         "equity": _connector.get_equity(),
         "free_margin": _connector.get_free_margin(),
+        "connected": _connector.is_connected(),
+        "mode": "mock" if _connector.use_mock else "live"
     }
 
 
@@ -106,30 +110,129 @@ async def get_trades(limit: int = 20) -> dict:
     return {"trades": _connector.get_recent_trades(limit)}
 
 
+@router.get("/trades/database")
+async def get_database_trades(limit: int = 20, db: Session = Depends(get_db)) -> dict:
+    """Get trades from database with enhanced information."""
+    try:
+        trades = db.query(Trade).order_by(Trade.open_time.desc()).limit(limit).all()
+        
+        trade_list = []
+        for trade in trades:
+            trade_dict = {
+                "trade_id": trade.trade_id,
+                "symbol": trade.symbol,
+                "side": trade.trade_type,
+                "volume": float(trade.volume) if trade.volume else 0.0,
+                "open_price": float(trade.open_price) if trade.open_price else 0.0,
+                "close_price": float(trade.close_price) if trade.close_price else None,
+                "execution_price": float(trade.execution_price) if trade.execution_price else 0.0,
+                "stop_loss": float(trade.stop_loss) if trade.stop_loss else None,
+                "take_profit": float(trade.take_profit) if trade.take_profit else None,
+                "profit_loss": float(trade.profit_loss) if trade.profit_loss else None,
+                "status": trade.status,
+                "source": trade.source,
+                "commission": float(trade.commission) if trade.commission else 0.0,
+                "swap": float(trade.swap) if trade.swap else 0.0,
+                "order_id": trade.order_id,
+                "execution_time": trade.execution_time.isoformat() if trade.execution_time else None,
+                "open_time": trade.open_time.isoformat() if trade.open_time else None,
+                "close_time": trade.close_time.isoformat() if trade.close_time else None,
+                "notes": trade.notes,
+                "pip_gain": float(trade.pip_gain) if trade.pip_gain else None,
+                "risk_reward_ratio": float(trade.risk_reward_ratio) if trade.risk_reward_ratio else None
+            }
+            trade_list.append(trade_dict)
+        
+        return {"trades": trade_list, "total": len(trade_list)}
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error("Error fetching database trades: %s", str(e))
+        return {"trades": [], "total": 0, "error": str(e)}
+
+
 @router.post("/order/market")
 async def market_order(req: MarketOrderRequest, db: Session = Depends(get_db)) -> dict:
     _ensure_connected()
+    
+    # Get current market price for execution
+    bid, ask = _connector.get_bid_ask(req.symbol)
+    
+    # Use appropriate price based on trade direction
+    execution_price = ask if req.side.lower() == 'buy' else bid
+    
     res = _connector.place_order(
         symbol=req.symbol,
         side=req.side,
         quantity=req.volume,
-        price=_connector.get_last_price(req.symbol),
+        price=execution_price,
         sl=req.sl or 0.0,
         tp=req.tp or 0.0,
         comment="ui_market_order",
     )
-    # persist to DB if success
+    
+    # Persist to database if successful
     if isinstance(res, dict) and not res.get("error"):
         try:
-            db.add(Trade(
-                broker_ticket=str(res.get("id")),
-                symbol=res.get("symbol"),
-                side=res.get("side"),
-                volume=float(res.get("quantity", 0.0)),
-                price=float(res.get("price", 0.0)),
-                profit=0.0,
-            ))
+            # Calculate commission (simplified - you can enhance this)
+            commission = 0.0  # Default commission
+            
+            # Create comprehensive trade record
+            trade = Trade(
+                account_id=1,  # Default account
+                strategy_id=None,  # Manual trade
+                symbol=req.symbol,
+                trade_type=req.side.upper(),  # BUY/SELL
+                volume=req.volume,
+                open_price=execution_price,
+                close_price=None,  # Will be set when position is closed
+                stop_loss=req.sl or None,
+                take_profit=req.tp or None,
+                commission=commission,
+                swap=0.0,  # Default swap
+                profit_loss=None,  # Will be calculated when position is closed
+                status='OPEN',
+                order_id=str(res.get("id", "")),
+                execution_price=execution_price,
+                execution_time=datetime.utcnow(),
+                source='MANUAL',
+                base_currency='USD',
+                profit_currency='USD',
+                risk_reward_ratio=None,  # Can be calculated if SL/TP are set
+                pip_gain=None,  # Will be calculated when position is closed
+                duration=None,  # Will be calculated when position is closed
+                notes=f"Manual market order: {req.comment or 'ui_market_order'}",
+                open_time=datetime.utcnow(),
+                close_time=None
+            )
+            
+            db.add(trade)
             db.commit()
-        except Exception:
+            
+            # Return success response with trade details
+            return {
+                "success": True,
+                "trade_id": trade.trade_id,
+                "order_id": trade.order_id,
+                "symbol": trade.symbol,
+                "side": trade.trade_type,
+                "volume": trade.volume,
+                "price": trade.execution_price,
+                "status": trade.status,
+                "execution_time": trade.execution_time.isoformat() if trade.execution_time else None,
+                "message": "Trade executed successfully"
+            }
+            
+        except Exception as e:
             db.rollback()
-    return res
+            logger = logging.getLogger(__name__)
+            logger.error("Error persisting broker trade: %s", str(e))
+            return {
+                "error": f"Trade executed but failed to save to database: {str(e)}",
+                "success": False
+            }
+    
+    # Return error response
+    return {
+        "error": res.get("error", "Unknown error occurred"),
+        "success": False
+    }

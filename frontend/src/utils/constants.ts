@@ -5,41 +5,21 @@
 // Trading symbols
 export const TRADING_SYMBOLS = {
   FOREX: [
-    'EURUSD',
-    'GBPUSD',
-    'USDJPY',
-    'USDCHF',
-    'AUDUSD',
-    'USDCAD',
-    'NZDUSD',
-    'EURGBP',
-    'EURJPY',
-    'GBPJPY',
-  ],
-  CRYPTO: [
-    'BTCUSDT',
-    'ETHUSDT',
-    'ADAUSDT',
-    'DOTUSDT',
-    'LINKUSDT',
-    'LTCUSDT',
-    'BCHUSDT',
-    'XRPUSDT',
-    'EOSUSDT',
-    'TRXUSDT',
+    'EURUSDm', 'GBPUSDm', 'USDJPYm', 'USDCHFm', 'USDCADm', 'AUDUSDm', 'NZDUSDm',
+    'EURGBPm', 'EURJPYm', 'EURCHFm', 'GBPJPYm', 'GBPCHFm', 'AUDJPYm', 'CADJPYm',
+    'CHFJPYm', 'NZDJPYm', 'EURNZDm', 'EURCADm', 'GBPCADm', 'AUDNZDm'
   ],
   COMMODITIES: [
-    'XAUUSD', // Gold
-    'XAGUSD', // Silver
-    'USOIL',  // Crude Oil
-    'UKOIL',  // Brent Oil
+    'XAUUSDm', 'XAGUSDm', 'XBRUSDm', 'XTIUSDm', 'XNGUSDm', 'XPDUSDm', 'XPTUSDm'
   ],
   INDICES: [
-    'US30',   // Dow Jones
-    'NAS100', // NASDAQ
-    'SPX500', // S&P 500
-    'UK100',  // FTSE 100
-    'GER30',  // DAX
+    'US30m', 'US500m', 'USTECm', 'GER40m', 'UK100m', 'FRA40m', 'JPN225m', 'HK50m', 'AUS200m'
+  ],
+  CRYPTO: [
+    'BTCUSDm', 'ETHUSDm', 'LTCUSDm', 'XRPUSDm', 'BCHUSDm', 'ADAUSDm', 'DOGEUSDm', 'SOLUSDm'
+  ],
+  STOCKS: [
+    'AAPLm', 'TSLAm', 'MSFTm', 'AMZNm', 'METAm', 'GOOGLm', 'NVDAm', 'NFLXm', 'JPMm', 'BRK.Bm'
   ],
 } as const;
 
