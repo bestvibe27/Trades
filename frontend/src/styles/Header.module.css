@@ -1,24 +1,42 @@
-.header { position: sticky; top: 0; z-index: 30; backdrop-filter: saturate(140%) blur(10px); background: rgba(15, 21, 36, 0.75); border-bottom: 1px solid var(--border); }
-.wrap { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
-.headerInner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.header { position: sticky; top: 0; z-index: 40; backdrop-filter: saturate(160%) blur(12px); background: rgba(10, 14, 23, 0.8); border-bottom: 1px solid var(--border); }
+.wrap { max-width: 1400px; margin: 0 auto; padding: 0 20px; }
+.headerInner { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 16px; }
+.left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
 .brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; }
-.brandLogo { width: 32px; height: 32px; border-radius: 10px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: grid; place-items: center; font-weight: 800; }
-.brandName { font-size: 18px; font-weight: 700; }
-.nav { display: none; gap: 16px; }
-.navLink { color: var(--text-dim); text-decoration: none; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; transition: color var(--transition-base) ease, background var(--transition-base) ease, border-color var(--transition-base) ease; }
-.navLink:hover { color: var(--text); border-color: var(--border); background: rgba(255,255,255,0.03); }
-@media (min-width: 768px) { .nav { display: flex; } }
-.status { display: flex; align-items: center; gap: 12px; }
-.statusDot { width: 8px; height: 8px; border-radius: 50%; background: var(--profit); box-shadow: 0 0 12px rgba(0,200,83,0.6); }
-.profile { display: flex; align-items: center; gap: 8px; color: var(--text-dim); }
-.avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a3553; display: grid; place-items: center; color: var(--text); }
+.brand:focus-visible { outline: none; box-shadow: var(--ring); border-radius: 10px; }
+.brandLogo { width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: grid; place-items: center; font-weight: 800; color: #fff; box-shadow: 0 4px 14px rgba(59,130,246,0.4); }
+.brandName { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+
 .ticker { display: none; }
-@media (min-width: 1024px) { .ticker { display: flex; gap: 18px; align-items: center; margin-left: 24px; font-variant-numeric: tabular-nums; }}
-.tickerItem { color: var(--text-dim); }
-.tickerUp { color: var(--profit); animation: pulse 2s ease-in-out infinite; }
-.tickerDown { color: var(--loss); animation: pulse 2s ease-in-out infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-.mobileBtn { display: inline-grid; place-items: center; padding: 8px; border-radius: 8px; color: var(--text-dim); border: 1px solid transparent; }
-.mobileBtn:hover { background: rgba(255,255,255,0.05); border-color: var(--border); color: var(--text); }
-.mobileMenu { display: none; }
-@media (max-width: 767px) { .mobileMenu { display: block; border-top: 1px solid var(--border); padding: 8px 0; } }
+@media (min-width: 1280px) {
+  .ticker { display: flex; gap: 20px; align-items: center; margin-left: 24px; padding-left: 24px; border-left: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+}
+.tickerItem { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.tickerSym { color: var(--text-dim); font-weight: 500; }
+.tickerUp { color: var(--profit); font-weight: 600; }
+.tickerDown { color: var(--loss); font-weight: 600; }
+
+.nav { display: none; gap: 4px; }
+@media (min-width: 1024px) { .nav { display: flex; } }
+.navLink { color: var(--text-dim); text-decoration: none; padding: 8px 14px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; transition: color var(--transition-base) ease, background var(--transition-base) ease; }
+.navLink:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+.navLink:focus-visible { outline: none; box-shadow: var(--ring); }
+.navLinkActive { color: var(--text); background: var(--accent-soft); font-weight: 600; }
+
+.status { display: flex; align-items: center; gap: 12px; }
+.connected { display: none; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--profit-soft); border: 1px solid rgba(34,197,94,0.25); }
+@media (min-width: 640px) { .connected { display: inline-flex; } }
+.statusDot { width: 8px; height: 8px; border-radius: 50%; background: var(--profit); box-shadow: 0 0 10px rgba(34,197,94,0.8); animation: pulse 2.4s ease-in-out infinite; }
+.statusText { font-size: 13px; font-weight: 600; color: var(--profit); }
+
+.mobileBtn { display: inline-grid; place-items: center; padding: 8px; border-radius: var(--radius-sm); color: var(--text-dim); border: 1px solid var(--border); background: var(--bg-elev-2); cursor: pointer; }
+.mobileBtn:hover { background: var(--card-hover); color: var(--text); }
+.mobileBtn:focus-visible { outline: none; box-shadow: var(--ring); }
+@media (min-width: 1024px) { .mobileBtn { display: none; } }
+
+.mobileMenu { display: flex; flex-direction: column; gap: 4px; padding: 8px 0 16px; border-top: 1px solid var(--border); }
+@media (min-width: 1024px) { .mobileMenu { display: none; } }
+.mobileLink { color: var(--text-dim); text-decoration: none; padding: 12px 14px; border-radius: var(--radius-sm); font-weight: 500; }
+.mobileLink:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+.mobileLinkActive { background: var(--accent-soft); color: var(--text); font-weight: 600; }

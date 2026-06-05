@@ -1,15 +1,29 @@
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import styles from '../../styles/Header.module.css';
 
+const NAV = [
+  { name: 'Dashboard', href: '/' },
+  { name: 'Trading', href: '/trading' },
+  { name: 'Portfolio', href: '/portfolio' },
+  { name: 'Strategies', href: '/strategies' },
+  { name: 'Backtest', href: '/backtest' },
+];
+
 const Header: React.FC = () => {
+  const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const isActive = (href: string) =>
+    href === '/' ? router.pathname === '/' : router.pathname.startsWith(href);
 
   const ticker = useMemo(
     () => [
       { sym: 'EURUSD', price: '1.0784', up: true },
-      { sym: 'BTCUSDT', price: '64320', up: false },
-      { sym: 'ETHUSDT', price: '3195', up: true },
+      { sym: 'BTCUSDT', price: '64,320', up: false },
+      { sym: 'ETHUSDT', price: '3,195', up: true },
     ],
     []
   );
@@ -18,55 +32,67 @@ const Header: React.FC = () => {
     <header className={styles.header}>
       <div className={styles.wrap}>
         <div className={styles.headerInner}>
-          {/* Brand */}
-          <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div className={styles.left}>
             <Link href="/" className={styles.brand}>
-              <div className={styles.brandLogo}>T</div>
-              <span className={styles.brandName}>Trading Bot</span>
+              <div className={styles.brandLogo} aria-hidden="true">T</div>
+              <span className={styles.brandName}>TradeDesk</span>
             </Link>
-            <div className={styles.ticker}>
+            <div className={styles.ticker} aria-hidden="true">
               {ticker.map((t) => (
                 <span key={t.sym} className={styles.tickerItem}>
-                  {t.sym}{' '}
+                  <span className={styles.tickerSym}>{t.sym}</span>
                   <span className={t.up ? styles.tickerUp : styles.tickerDown}>{t.price}</span>
                 </span>
               ))}
             </div>
           </div>
 
-          {/* Nav */}
-          <nav className={styles.nav}>
-            <Link href="/" className={styles.navLink}>Dashboard</Link>
-            <Link href="/trading" className={styles.navLink}>Trading</Link>
-            <Link href="/portfolio" className={styles.navLink}>Portfolio</Link>
-            <Link href="/strategies" className={styles.navLink}>Strategies</Link>
-            <Link href="/backtest" className={styles.navLink}>Backtest</Link>
+          <nav className={styles.nav} aria-label="Primary">
+            {NAV.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                aria-current={isActive(item.href) ? 'page' : undefined}
+                className={`${styles.navLink} ${isActive(item.href) ? styles.navLinkActive : ''}`}
+              >
+                {item.name}
+              </Link>
+            ))}
           </nav>
 
-          {/* Right area */}
           <div className={styles.status}>
-            <span className={styles.statusDot} />
-            <span>Connected</span>
-            <button className={styles.mobileBtn} onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Menu">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
+            <span className={styles.connected}>
+              <span className={styles.statusDot} />
+              <span className={styles.statusText}>Connected</span>
+            </span>
+            <button
+              className={styles.mobileBtn}
+              onClick={() => setIsMenuOpen((v) => !v)}
+              aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={isMenuOpen}
+            >
+              {isMenuOpen ? (
+                <XMarkIcon width={24} height={24} />
+              ) : (
+                <Bars3Icon width={24} height={24} />
+              )}
             </button>
           </div>
         </div>
 
-        {/* Mobile menu */}
         {isMenuOpen && (
           <div className={styles.mobileMenu}>
-            <div className="container">
-              <div style={{ display: 'grid', gap: 8, padding: '8px 0' }}>
-                <Link href="/" className={styles.navLink}>Dashboard</Link>
-                <Link href="/trading" className={styles.navLink}>Trading</Link>
-                <Link href="/portfolio" className={styles.navLink}>Portfolio</Link>
-                <Link href="/strategies" className={styles.navLink}>Strategies</Link>
-                <Link href="/backtest" className={styles.navLink}>Backtest</Link>
-              </div>
-            </div>
+            {[...NAV, { name: 'Settings', href: '/settings' }].map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={() => setIsMenuOpen(false)}
+                aria-current={isActive(item.href) ? 'page' : undefined}
+                className={`${styles.mobileLink} ${isActive(item.href) ? styles.mobileLinkActive : ''}`}
+              >
+                {item.name}
+              </Link>
+            ))}
           </div>
         )}
       </div>
@@ -75,13 +101,3 @@ const Header: React.FC = () => {
 };
 
 export default Header;
-
-
-
-
-
-
-
-
-
-

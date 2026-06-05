@@ -306,9 +306,14 @@ const TradingPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Layout title="Trading - Trading Dashboard">
+      <Layout title="Trading - TradeDesk">
         <div className={styles.page}>
-          <div className={styles.card}>Loading trading data...</div>
+          <div className={styles.cards}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className={`skeleton ${styles.skelRow}`} />
+            ))}
+          </div>
+          <div className={`skeleton ${styles.skelRow}`} style={{ height: 240 }} />
         </div>
       </Layout>
     );
@@ -316,55 +321,60 @@ const TradingPage: React.FC = () => {
 
   if (error) {
     return (
-      <Layout title="Trading - Trading Dashboard">
+      <Layout title="Trading - TradeDesk">
         <div className={styles.page}>
-          <div
-            className={styles.card}
-            style={{ borderColor: "#5f1a1a", background: "rgba(213,0,0,0.08)" }}
-          >
-            {error}
-          </div>
+          <div className={styles.alert + " " + styles.alertError}>{error}</div>
         </div>
       </Layout>
     );
   }
 
+  const isSuccess = uiError.startsWith("✅");
+  const orderDisabled =
+    submitting || !mt5Connected || !qQuote || qQuote.bid <= 0 || qQuote.ask <= 0;
+
   return (
-    <Layout title="Trading - Trading Dashboard">
-      <div className={styles.page}>
+    <Layout title="Trading - TradeDesk">
+      <div className={`${styles.page} fade-in`}>
         {/* Header */}
         <div className={styles.header}>
           <div>
             <h1 className={styles.title}>Trading</h1>
             <p className={styles.subtitle}>
-              Monitor your positions and trading activity
+              Place orders and monitor your live positions
             </p>
           </div>
         </div>
 
-        {/* MT5 Status + Quick Order */}
-        <div className={styles.cards}>
-          <div className={styles.card}>
-            <div className={styles.cardLabel}>MT5 Status</div>
-            <div
-              className={styles.cardValue}
-              style={{ display: "flex", alignItems: "baseline", gap: 12 }}
-            >
-              <span className={`${styles.badge} ${mt5Connected ? "pl" : "nl"}`}>
+        {/* MT5 Status + Order Ticket */}
+        <div className={styles.topGrid}>
+          <div className={styles.panel}>
+            <h2 className={styles.panelTitle}>Broker Connection</h2>
+            <div className={styles.statusRow}>
+              <span
+                className={`${styles.statusBadge} ${mt5Connected ? styles.statusOk : styles.statusOff}`}
+              >
+                <span className={styles.statusDot} />
                 {mt5Connected ? "Connected" : "Disconnected"}
               </span>
             </div>
-            <div style={{ fontSize: 12, opacity: 0.85, marginTop: 8 }}>
+            <div className={styles.metaList}>
               {mt5Account ? (
                 <>
-                  <div>Login: {mt5Account.login}</div>
-                  <div>Server: {mt5Account.server}</div>
+                  <div className={styles.metaRow}>
+                    <span>Login</span>
+                    <b>{mt5Account.login}</b>
+                  </div>
+                  <div className={styles.metaRow}>
+                    <span>Server</span>
+                    <b>{mt5Account.server}</b>
+                  </div>
                 </>
               ) : (
                 <div>{mt5Error || "No account info"}</div>
               )}
             </div>
-            <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+            <div className={styles.btnRow}>
               <button className="btn" onClick={fetchBrokerStatus}>
                 Refresh
               </button>
@@ -374,19 +384,13 @@ const TradingPage: React.FC = () => {
             </div>
           </div>
 
-          <div className={styles.card}>
-            <div className={styles.cardLabel}>Quick Market Order</div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 8,
-                marginTop: 8,
-              }}
-            >
-              <div>
-                <label style={{ fontSize: 12, opacity: 0.85 }}>Symbol</label>
+          <div className={styles.panel}>
+            <h2 className={styles.panelTitle}>Quick Market Order</h2>
+            <div className={styles.formGrid}>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="t-symbol">Symbol</label>
                 <select
+                  id="t-symbol"
                   className="input"
                   value={qSymbol}
                   onChange={(e) => {
@@ -395,142 +399,92 @@ const TradingPage: React.FC = () => {
                     fetchQuote(v);
                     fetchSymbolInfo(v);
                   }}
-                  style={{ width: "100%" }}
                 >
                   <optgroup label="Forex">
                     {TRADING_SYMBOLS.FOREX.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
+                      <option key={s} value={s}>{s}</option>
                     ))}
                   </optgroup>
                   <optgroup label="Commodities">
                     {TRADING_SYMBOLS.COMMODITIES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
+                      <option key={s} value={s}>{s}</option>
                     ))}
                   </optgroup>
                   <optgroup label="Indices">
                     {TRADING_SYMBOLS.INDICES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
+                      <option key={s} value={s}>{s}</option>
                     ))}
                   </optgroup>
                   <optgroup label="Crypto">
                     {TRADING_SYMBOLS.CRYPTO.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
+                      <option key={s} value={s}>{s}</option>
                     ))}
                   </optgroup>
                   <optgroup label="Stocks">
                     {TRADING_SYMBOLS.STOCKS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
+                      <option key={s} value={s}>{s}</option>
                     ))}
                   </optgroup>
                 </select>
               </div>
-              <div>
-                <label style={{ fontSize: 12, opacity: 0.85 }}>
-                  Volume (lots)
-                </label>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="t-volume">Volume (lots)</label>
                 <input
+                  id="t-volume"
                   className="input"
                   type="number"
                   step={(symInfo?.volume_step ?? 0.01).toString()}
                   min={(symInfo?.volume_min ?? 0.01).toString()}
                   value={qVolume}
-                  onChange={(e) => {
-                    const num = parseFloat(e.target.value);
-                    setQVolume(num);
-                  }}
+                  onChange={(e) => setQVolume(parseFloat(e.target.value))}
                 />
               </div>
             </div>
-            <div style={{ fontSize: 12, opacity: 0.85, marginTop: 8 }}>
-              {qQuote ? (
-                <>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      alignItems: "center",
-                      marginBottom: 6,
-                    }}
-                  >
-                    <span style={{ fontSize: 12, opacity: 0.85 }}>Side</span>
-                    <label
-                      style={{ display: "flex", alignItems: "center", gap: 6 }}
-                    >
-                      <input
-                        type="radio"
-                        value="buy"
-                        checked={qSide === "buy"}
-                        onChange={() => setQSide("buy")}
-                      />
-                      <span className="pl" style={{ fontSize: 12 }}>
-                        Buy
-                      </span>
-                    </label>
-                    <label
-                      style={{ display: "flex", alignItems: "center", gap: 6 }}
-                    >
-                      <input
-                        type="radio"
-                        value="sell"
-                        checked={qSide === "sell"}
-                        onChange={() => setQSide("sell")}
-                      />
-                      <span className="nl" style={{ fontSize: 12 }}>
-                        Sell
-                      </span>
-                    </label>
-                  </div>
-                  <div>
-                    Take Profit:{" "}
-                    {(qSide === "buy" ? qQuote.ask : qQuote.bid).toFixed(5)} •
-                    Stop Loss:{" "}
-                    {(qSide === "buy" ? qQuote.bid : qQuote.ask).toFixed(5)}
-                  </div>
-                </>
-              ) : (
-                <div>Quote unavailable</div>
-              )}
+
+            <div className={styles.sideToggle} role="radiogroup" aria-label="Order side">
+              <label className={`${styles.sideOption} ${qSide === "buy" ? styles.sideBuyActive : ""}`}>
+                <input type="radio" value="buy" checked={qSide === "buy"} onChange={() => setQSide("buy")} />
+                Buy
+              </label>
+              <label className={`${styles.sideOption} ${qSide === "sell" ? styles.sideSellActive : ""}`}>
+                <input type="radio" value="sell" checked={qSide === "sell"} onChange={() => setQSide("sell")} />
+                Sell
+              </label>
             </div>
-            <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+
+            <div className={styles.quoteBox}>
+              <div className={styles.quoteCell}>
+                <div className={styles.quoteLabel}>Take Profit</div>
+                <div className={styles.quoteVal}>
+                  {qQuote ? (qSide === "buy" ? qQuote.ask : qQuote.bid).toFixed(5) : "—"}
+                </div>
+              </div>
+              <div className={styles.quoteCell}>
+                <div className={styles.quoteLabel}>Stop Loss</div>
+                <div className={styles.quoteVal}>
+                  {qQuote ? (qSide === "buy" ? qQuote.bid : qQuote.ask).toFixed(5) : "—"}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.submitRow}>
               <button
-                className="btn"
-                disabled={
-                  submitting ||
-                  !mt5Connected ||
-                  !qQuote ||
-                  qQuote.bid <= 0 ||
-                  qQuote.ask <= 0
-                }
+                className="btn btn-success"
+                disabled={orderDisabled}
                 onClick={() => submitMarketOrder("buy")}
               >
-                Buy
+                {submitting ? "Placing…" : "Buy"}
               </button>
               <button
-                className="btn"
-                disabled={
-                  submitting ||
-                  !mt5Connected ||
-                  !qQuote ||
-                  qQuote.bid <= 0 ||
-                  qQuote.ask <= 0
-                }
+                className="btn btn-danger"
+                disabled={orderDisabled}
                 onClick={() => submitMarketOrder("sell")}
               >
-                Sell
+                {submitting ? "Placing…" : "Sell"}
               </button>
             </div>
             {uiError ? (
-              <div style={{ marginTop: 8, color: "#ff6b6b", fontSize: 12 }}>
+              <div className={`${styles.alert} ${isSuccess ? styles.alertSuccess : styles.alertError}`}>
                 {uiError}
               </div>
             ) : null}
@@ -568,7 +522,7 @@ const TradingPage: React.FC = () => {
             <h2>Open Positions</h2>
           </div>
           {positions.length === 0 ? (
-            <div className={styles.card}>No open positions</div>
+            <div className={styles.empty}>No open positions yet</div>
           ) : (
             <div className={styles.tableWrap}>
               <table className={styles.table}>
@@ -622,7 +576,7 @@ const TradingPage: React.FC = () => {
             <h2>Recent Trades</h2>
           </div>
           {orders.length === 0 ? (
-            <div className={styles.card}>No recent trades</div>
+            <div className={styles.empty}>No recent trades</div>
           ) : (
             <div className={styles.tableWrap}>
               <table className={styles.table}>

@@ -161,9 +161,14 @@ const PortfolioPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Layout title="Portfolio - Trading Dashboard">
+      <Layout title="Portfolio - TradeDesk">
         <div className={styles.page}>
-          <div className={styles.card}>Loading portfolio data...</div>
+          <div className={styles.cards}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className={`skeleton ${styles.skel}`} />
+            ))}
+          </div>
+          <div className={`skeleton`} style={{ height: 220 }} />
         </div>
       </Layout>
     );
@@ -171,17 +176,17 @@ const PortfolioPage: React.FC = () => {
 
   if (error || !portfolio) {
     return (
-      <Layout title="Portfolio - Trading Dashboard">
+      <Layout title="Portfolio - TradeDesk">
         <div className={styles.page}>
-          <div className={styles.card} style={{ borderColor: '#5f1a1a', background: 'rgba(213,0,0,0.08)' }}>{error || 'Failed to load portfolio'}</div>
+          <div className={styles.empty}>{error || 'Failed to load portfolio'}</div>
         </div>
       </Layout>
     );
   }
 
   return (
-    <Layout title="Portfolio - Trading Dashboard">
-      <div className={styles.page}>
+    <Layout title="Portfolio - TradeDesk">
+      <div className={`${styles.page} fade-in`}>
         <div className={styles.header}>
           <div>
             <h1 className={styles.title}>Portfolio</h1>
@@ -209,28 +214,25 @@ const PortfolioPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Performance table */}
+        {/* Performance metrics */}
         <section className={styles.section}>
           <div className={styles.sectionHeader}><h2>Performance Metrics</h2></div>
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Metric</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>Total Return</td><td className={portfolio.performance.totalReturn >= 0 ? 'pl' : 'nl'}>{portfolio.performance.totalReturn >= 0 ? '+' : ''}{portfolio.performance.totalReturn.toFixed(2)}%</td></tr>
-                <tr><td>Daily Return</td><td className={portfolio.performance.dailyReturn >= 0 ? 'pl' : 'nl'}>{portfolio.performance.dailyReturn >= 0 ? '+' : ''}{portfolio.performance.dailyReturn.toFixed(2)}%</td></tr>
-                <tr><td>Weekly Return</td><td className={portfolio.performance.weeklyReturn >= 0 ? 'pl' : 'nl'}>{portfolio.performance.weeklyReturn >= 0 ? '+' : ''}{portfolio.performance.weeklyReturn.toFixed(2)}%</td></tr>
-                <tr><td>Monthly Return</td><td className={portfolio.performance.monthlyReturn >= 0 ? 'pl' : 'nl'}>{portfolio.performance.monthlyReturn >= 0 ? '+' : ''}{portfolio.performance.monthlyReturn.toFixed(2)}%</td></tr>
-                <tr><td>Max Drawdown</td><td className="nl">{portfolio.performance.maxDrawdown.toFixed(2)}%</td></tr>
-                <tr><td>Sharpe Ratio</td><td>{portfolio.performance.sharpeRatio.toFixed(2)}</td></tr>
-                <tr><td>Win Rate</td><td>{portfolio.performance.winRate.toFixed(1)}%</td></tr>
-                <tr><td>Profit Factor</td><td>{portfolio.performance.profitFactor.toFixed(2)}</td></tr>
-              </tbody>
-            </table>
+          <div className={styles.metricsGrid}>
+            {[
+              { label: 'Total Return', value: `${portfolio.performance.totalReturn >= 0 ? '+' : ''}${portfolio.performance.totalReturn.toFixed(2)}%`, cls: portfolio.performance.totalReturn >= 0 ? 'pl' : 'nl' },
+              { label: 'Daily Return', value: `${portfolio.performance.dailyReturn >= 0 ? '+' : ''}${portfolio.performance.dailyReturn.toFixed(2)}%`, cls: portfolio.performance.dailyReturn >= 0 ? 'pl' : 'nl' },
+              { label: 'Weekly Return', value: `${portfolio.performance.weeklyReturn >= 0 ? '+' : ''}${portfolio.performance.weeklyReturn.toFixed(2)}%`, cls: portfolio.performance.weeklyReturn >= 0 ? 'pl' : 'nl' },
+              { label: 'Monthly Return', value: `${portfolio.performance.monthlyReturn >= 0 ? '+' : ''}${portfolio.performance.monthlyReturn.toFixed(2)}%`, cls: portfolio.performance.monthlyReturn >= 0 ? 'pl' : 'nl' },
+              { label: 'Max Drawdown', value: `${portfolio.performance.maxDrawdown.toFixed(2)}%`, cls: 'nl' },
+              { label: 'Sharpe Ratio', value: portfolio.performance.sharpeRatio.toFixed(2), cls: '' },
+              { label: 'Win Rate', value: `${portfolio.performance.winRate.toFixed(1)}%`, cls: '' },
+              { label: 'Profit Factor', value: portfolio.performance.profitFactor.toFixed(2), cls: '' },
+            ].map((m) => (
+              <div key={m.label} className={styles.metric}>
+                <div className={styles.metricLabel}>{m.label}</div>
+                <div className={`${styles.metricValue} ${m.cls}`}>{m.value}</div>
+              </div>
+            ))}
           </div>
         </section>
 
