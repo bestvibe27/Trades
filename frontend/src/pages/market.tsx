@@ -73,6 +73,7 @@ export default function MarketPage() {
 
   return (
     <Layout title={`Market - ${symbol} (${timeframe})`}>
+      <div className="fade-in" style={{ padding: 24 }}>
       <div className={styles.headerRow}>
         <div>
           <h1 className={styles.title}>Market</h1>
@@ -132,6 +133,7 @@ export default function MarketPage() {
           </div>
         </div>
       </section>
+      </div>
     </Layout>
   );
 }
