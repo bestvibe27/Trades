@@ -61,23 +61,29 @@ const BacktestPage: React.FC = () => {
       <div className="space-y-6">
         {/* Page header */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Strategy Backtesting</h1>
-          <p className="mt-1 text-sm text-gray-600">
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Strategy Backtesting</h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--text-dim)' }}>
             Test your trading strategies against historical data
           </p>
         </div>
 
         {/* Backtest form */}
-        <div className="bg-white shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Run Backtest</h3>
+        <div style={{
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          padding: '24px',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          <h3 className="text-lg font-medium mb-4" style={{ color: 'var(--text)' }}>Run Backtest</h3>
           <form onSubmit={handleRunBacktest} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Strategy</label>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Strategy</label>
                 <select
                   value={formData.strategy}
                   onChange={(e) => setFormData({ ...formData, strategy: e.target.value })}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  className="input"
                 >
                   <option value="sma_crossover">SMA Crossover</option>
                   <option value="rsi_mean_reversion">RSI Mean Reversion</option>
@@ -86,11 +92,11 @@ const BacktestPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Symbol</label>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Symbol</label>
                 <select
                   value={formData.symbol}
                   onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  className="input"
                 >
                   <option value="EURUSD">EUR/USD</option>
                   <option value="GBPUSD">GBP/USD</option>
@@ -100,11 +106,11 @@ const BacktestPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Timeframe</label>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Timeframe</label>
                 <select
                   value={formData.timeframe}
                   onChange={(e) => setFormData({ ...formData, timeframe: e.target.value })}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  className="input"
                 >
                   <option value="1m">1 Minute</option>
                   <option value="5m">5 Minutes</option>
@@ -116,32 +122,32 @@ const BacktestPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Start Date</label>
                 <input
                   type="date"
                   value={formData.startDate}
                   onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  className="input"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">End Date</label>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>End Date</label>
                 <input
                   type="date"
                   value={formData.endDate}
                   onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  className="input"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Initial Balance</label>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Initial Balance</label>
                 <input
                   type="number"
                   value={formData.initialBalance}
                   onChange={(e) => setFormData({ ...formData, initialBalance: Number(e.target.value) })}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  className="input"
                   min="1000"
                   step="1000"
                 />
@@ -152,7 +158,7 @@ const BacktestPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={isRunning}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-md text-sm font-medium"
+                className="btn-primary"
               >
                 {isRunning ? 'Running Backtest...' : 'Run Backtest'}
               </button>
@@ -162,75 +168,51 @@ const BacktestPage: React.FC = () => {
 
         {/* Backtest results */}
         {results.length > 0 && (
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
-            <div className="px-4 py-5 sm:px-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">
+          <div style={{
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            overflow: 'hidden',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <div style={{ padding: '20px 24px' }}>
+              <h3 className="text-lg leading-6 font-medium" style={{ color: 'var(--text)' }}>
                 Backtest Results
               </h3>
-              <p className="mt-1 max-w-2xl text-sm text-gray-500">
+              <p className="mt-1 max-w-2xl text-sm" style={{ color: 'var(--text-dim)' }}>
                 Historical performance of your strategies
               </p>
             </div>
             
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="table">
+                <thead>
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Strategy
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Symbol
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Period
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total Return
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Max Drawdown
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Sharpe Ratio
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Win Rate
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Trades
-                    </th>
+                    <th>Strategy</th>
+                    <th>Symbol</th>
+                    <th>Period</th>
+                    <th>Total Return</th>
+                    <th>Max Drawdown</th>
+                    <th>Sharpe Ratio</th>
+                    <th>Win Rate</th>
+                    <th>Trades</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody>
                   {results.map((result) => (
                     <tr key={result.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {result.strategyName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {result.symbol}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {result.startDate} to {result.endDate}
-                      </td>
-                      <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
-                        result.totalReturn >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
+                      <td>{result.strategyName}</td>
+                      <td>{result.symbol}</td>
+                      <td>{result.startDate} to {result.endDate}</td>
+                      <td className={result.totalReturn >= 0 ? 'pl' : 'nl'}>
                         {result.totalReturn >= 0 ? '+' : ''}{result.totalReturn.toFixed(2)}%
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
+                      <td style={{ color: 'var(--loss)' }}>
                         {result.maxDrawdown.toFixed(2)}%
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {result.sharpeRatio.toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {result.winRate.toFixed(1)}%
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {result.totalTrades}
-                      </td>
+                      <td>{result.sharpeRatio.toFixed(2)}</td>
+                      <td>{result.winRate.toFixed(1)}%</td>
+                      <td>{result.totalTrades}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -242,8 +224,8 @@ const BacktestPage: React.FC = () => {
         {/* Empty state */}
         {results.length === 0 && !isRunning && (
           <div className="text-center py-12">
-            <div className="text-gray-500">No backtest results yet</div>
-            <p className="mt-2 text-sm text-gray-400">
+            <div style={{ color: 'var(--text-dim)' }}>No backtest results yet</div>
+            <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
               Run your first backtest to see strategy performance
             </p>
           </div>
