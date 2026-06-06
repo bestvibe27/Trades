@@ -170,7 +170,7 @@ const StrategiesPage: React.FC = () => {
             }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
                 <div>
-                  <label>Strategy Type</label>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, marginBottom: 4, color: 'var(--text-dim)' }}>Strategy Type</label>
                   <select name="type" className="input" required>
                     <option value="">Select type</option>
                     <option value="sma_crossover">SMA Crossover</option>
@@ -179,7 +179,7 @@ const StrategiesPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label>Symbol</label>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, marginBottom: 4, color: 'var(--text-dim)' }}>Symbol</label>
                   <select name="symbol" className="input" required>
                     <option value="">Select symbol</option>
                     <option value="EURUSD">EUR/USD</option>
@@ -189,7 +189,7 @@ const StrategiesPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label>Timeframe</label>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: 500, marginBottom: 4, color: 'var(--text-dim)' }}>Timeframe</label>
                   <select name="timeframe" className="input" required>
                     <option value="">Select timeframe</option>
                     <option value="1m">1 Minute</option>
