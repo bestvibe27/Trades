@@ -50,41 +50,68 @@ const SettingsPage: React.FC = () => {
       <div className="space-y-6">
         {/* Page header */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="mt-1 text-sm text-gray-600">
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Settings</h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--text-dim)' }}>
             Configure your trading account and preferences
           </p>
         </div>
 
-        <div className="bg-white shadow rounded-lg">
+        <div style={{
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          boxShadow: 'var(--shadow-sm)',
+          overflow: 'hidden'
+        }}>
           {/* Tab navigation */}
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8 px-6">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <span className="mr-2">{tab.icon}</span>
-                  {tab.name}
-                </button>
-              ))}
-            </nav>
+          <div style={{
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            gap: '32px',
+            paddingLeft: '24px',
+            paddingRight: '24px'
+          }}>
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  paddingTop: '16px',
+                  paddingBottom: '16px',
+                  borderBottom: activeTab === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
+                  color: activeTab === tab.id ? 'var(--accent)' : 'var(--text-dim)',
+                  fontWeight: activeTab === tab.id ? '600' : '500',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  background: 'none',
+                  border: 'none',
+                  transition: 'all 160ms ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (activeTab !== tab.id) {
+                    e.currentTarget.style.color = 'var(--text)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== tab.id) {
+                    e.currentTarget.style.color = 'var(--text-dim)';
+                  }
+                }}
+              >
+                <span className="mr-2">{tab.icon}</span>
+                {tab.name}
+              </button>
+            ))}
           </div>
 
           {/* Tab content */}
-          <div className="p-6">
+          <div style={{ padding: '24px' }}>
             {activeTab === 'account' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900">Account Settings</h3>
+                <h3 className="text-lg font-medium" style={{ color: 'var(--text)' }}>Account Settings</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Account Name</label>
+                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Account Name</label>
                     <input
                       type="text"
                       value={settings.account.name}
@@ -92,11 +119,11 @@ const SettingsPage: React.FC = () => {
                         ...settings,
                         account: { ...settings.account, name: e.target.value }
                       })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      className="input"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Email</label>
+                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Email</label>
                     <input
                       type="email"
                       value={settings.account.email}
@@ -104,18 +131,18 @@ const SettingsPage: React.FC = () => {
                         ...settings,
                         account: { ...settings.account, email: e.target.value }
                       })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      className="input"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Timezone</label>
+                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Timezone</label>
                     <select
                       value={settings.account.timezone}
                       onChange={(e) => setSettings({
                         ...settings,
                         account: { ...settings.account, timezone: e.target.value }
                       })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      className="input"
                     >
                       <option value="UTC">UTC</option>
                       <option value="America/New_York">Eastern Time</option>
@@ -128,14 +155,14 @@ const SettingsPage: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Currency</label>
+                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Currency</label>
                     <select
                       value={settings.account.currency}
                       onChange={(e) => setSettings({
                         ...settings,
                         account: { ...settings.account, currency: e.target.value }
                       })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      className="input"
                     >
                       <option value="USD">USD</option>
                       <option value="EUR">EUR</option>
@@ -149,10 +176,10 @@ const SettingsPage: React.FC = () => {
 
             {activeTab === 'trading' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900">Trading Settings</h3>
+                <h3 className="text-lg font-medium" style={{ color: 'var(--text)' }}>Trading Settings</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Default Leverage</label>
+                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Default Leverage</label>
                     <input
                       type="number"
                       value={settings.trading.defaultLeverage}
@@ -160,13 +187,13 @@ const SettingsPage: React.FC = () => {
                         ...settings,
                         trading: { ...settings.trading, defaultLeverage: Number(e.target.value) }
                       })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      className="input"
                       min="1"
                       max="100"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Max Position Size (%)</label>
+                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Max Position Size (%)</label>
                     <input
                       type="number"
                       value={settings.trading.maxPositionSize}
@@ -174,14 +201,14 @@ const SettingsPage: React.FC = () => {
                         ...settings,
                         trading: { ...settings.trading, maxPositionSize: Number(e.target.value) }
                       })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      className="input"
                       min="0.01"
                       max="1"
                       step="0.01"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Risk Per Trade (%)</label>
+                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Risk Per Trade (%)</label>
                     <input
                       type="number"
                       value={settings.trading.riskPerTrade}
@@ -189,7 +216,7 @@ const SettingsPage: React.FC = () => {
                         ...settings,
                         trading: { ...settings.trading, riskPerTrade: Number(e.target.value) }
                       })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      className="input"
                       min="0.01"
                       max="0.1"
                       step="0.01"
@@ -205,9 +232,11 @@ const SettingsPage: React.FC = () => {
                         ...settings,
                         trading: { ...settings.trading, stopLossEnabled: e.target.checked }
                       })}
-                      className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                      style={{
+                        accentColor: 'var(--accent)'
+                      }}
                     />
-                    <span className="ml-2 text-sm text-gray-700">Enable Stop Loss</span>
+                    <span className="ml-2 text-sm" style={{ color: 'var(--text)' }}>Enable Stop Loss</span>
                   </label>
                   <label className="flex items-center">
                     <input
@@ -217,9 +246,11 @@ const SettingsPage: React.FC = () => {
                         ...settings,
                         trading: { ...settings.trading, takeProfitEnabled: e.target.checked }
                       })}
-                      className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                      style={{
+                        accentColor: 'var(--accent)'
+                      }}
                     />
-                    <span className="ml-2 text-sm text-gray-700">Enable Take Profit</span>
+                    <span className="ml-2 text-sm" style={{ color: 'var(--text)' }}>Enable Take Profit</span>
                   </label>
                 </div>
               </div>
@@ -227,7 +258,7 @@ const SettingsPage: React.FC = () => {
 
             {activeTab === 'notifications' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900">Notification Settings</h3>
+                <h3 className="text-lg font-medium" style={{ color: 'var(--text)' }}>Notification Settings</h3>
                 <div className="space-y-4">
                   <div>
                     <label className="flex items-center">
@@ -238,14 +269,16 @@ const SettingsPage: React.FC = () => {
                           ...settings,
                           notifications: { ...settings.notifications, emailEnabled: e.target.checked }
                         })}
-                        className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                        style={{
+                          accentColor: 'var(--accent)'
+                        }}
                       />
-                      <span className="ml-2 text-sm text-gray-700">Enable Email Notifications</span>
+                      <span className="ml-2 text-sm" style={{ color: 'var(--text)' }}>Enable Email Notifications</span>
                     </label>
                   </div>
                   {settings.notifications.emailEnabled && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Email Address</label>
+                      <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Email Address</label>
                       <input
                         type="email"
                         value={settings.notifications.emailAddress}
@@ -253,7 +286,7 @@ const SettingsPage: React.FC = () => {
                           ...settings,
                           notifications: { ...settings.notifications, emailAddress: e.target.value }
                         })}
-                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                        className="input"
                       />
                     </div>
                   )}
@@ -266,9 +299,11 @@ const SettingsPage: React.FC = () => {
                           ...settings,
                           notifications: { ...settings.notifications, tradeAlerts: e.target.checked }
                         })}
-                        className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                        style={{
+                          accentColor: 'var(--accent)'
+                        }}
                       />
-                      <span className="ml-2 text-sm text-gray-700">Trade Alerts</span>
+                      <span className="ml-2 text-sm" style={{ color: 'var(--text)' }}>Trade Alerts</span>
                     </label>
                     <label className="flex items-center">
                       <input
@@ -278,9 +313,11 @@ const SettingsPage: React.FC = () => {
                           ...settings,
                           notifications: { ...settings.notifications, errorAlerts: e.target.checked }
                         })}
-                        className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                        style={{
+                          accentColor: 'var(--accent)'
+                        }}
                       />
-                      <span className="ml-2 text-sm text-gray-700">Error Alerts</span>
+                      <span className="ml-2 text-sm" style={{ color: 'var(--text)' }}>Error Alerts</span>
                     </label>
                     <label className="flex items-center">
                       <input
@@ -290,9 +327,11 @@ const SettingsPage: React.FC = () => {
                           ...settings,
                           notifications: { ...settings.notifications, dailyReports: e.target.checked }
                         })}
-                        className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                        style={{
+                          accentColor: 'var(--accent)'
+                        }}
                       />
-                      <span className="ml-2 text-sm text-gray-700">Daily Reports</span>
+                      <span className="ml-2 text-sm" style={{ color: 'var(--text)' }}>Daily Reports</span>
                     </label>
                   </div>
                 </div>
@@ -301,16 +340,21 @@ const SettingsPage: React.FC = () => {
 
             {activeTab === 'api' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900">API Configuration</h3>
-                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-                  <div className="text-yellow-800 text-sm">
+                <h3 className="text-lg font-medium" style={{ color: 'var(--text)' }}>API Configuration</h3>
+                <div style={{
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid var(--warning)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '16px'
+                }}>
+                  <div style={{ color: 'var(--warning)', fontSize: '14px' }}>
                     <strong>Security Notice:</strong> API keys are stored securely and encrypted. 
                     Never share your API keys with anyone.
                   </div>
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Broker API Key</label>
+                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Broker API Key</label>
                     <input
                       type="password"
                       value={settings.api.brokerApiKey}
@@ -318,12 +362,12 @@ const SettingsPage: React.FC = () => {
                         ...settings,
                         api: { ...settings.api, brokerApiKey: e.target.value }
                       })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      className="input"
                       placeholder="Enter your broker API key"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Broker Secret</label>
+                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Broker Secret</label>
                     <input
                       type="password"
                       value={settings.api.brokerSecret}
@@ -331,12 +375,12 @@ const SettingsPage: React.FC = () => {
                         ...settings,
                         api: { ...settings.api, brokerSecret: e.target.value }
                       })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      className="input"
                       placeholder="Enter your broker secret"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Market Data API Key</label>
+                    <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-dim)' }}>Market Data API Key</label>
                     <input
                       type="password"
                       value={settings.api.marketDataApiKey}
@@ -344,7 +388,7 @@ const SettingsPage: React.FC = () => {
                         ...settings,
                         api: { ...settings.api, marketDataApiKey: e.target.value }
                       })}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      className="input"
                       placeholder="Enter your market data API key"
                     />
                   </div>
@@ -356,7 +400,7 @@ const SettingsPage: React.FC = () => {
             <div className="mt-6 flex justify-end">
               <button
                 onClick={handleSave}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md text-sm font-medium"
+                className="btn-primary"
               >
                 Save Settings
               </button>
