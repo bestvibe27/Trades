@@ -240,7 +240,7 @@ const PortfolioPage: React.FC = () => {
         <section className={styles.section}>
           <div className={styles.sectionHeader}><h2>Open Positions</h2></div>
           {positions.length === 0 ? (
-            <div className={styles.card}>No open positions</div>
+            <div className={styles.empty}>No open positions</div>
           ) : (
             <div className={styles.tableWrap}>
               <table className={styles.table}>
