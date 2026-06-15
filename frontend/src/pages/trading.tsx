@@ -117,7 +117,10 @@ const TradingPage: React.FC = () => {
 
       const list: Position[] = (res.positions || []).map((p: any) => ({
         symbol: p.symbol,
-        side: "other",
+        side: (() => {
+          const raw = typeof p.side === "string" ? p.side.trim().toLowerCase() : "other";
+          return raw === "buy" || raw === "sell" ? raw : "other";
+        })(),
         volume: Number(p.volume ?? 0),
         price_open: Number(p.price_open ?? 0),
         price_current: Number(p.price_current ?? 0),
