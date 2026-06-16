@@ -264,6 +264,61 @@ class InMemoryDB:
             self._tables[table].clear()
             self._counters[table] = 0
 
+    def add(self, obj: Any) -> None:
+        """Add a SQLAlchemy model instance to the appropriate table."""
+        table_name = obj.__tablename__
+        record_id = self._generate_id(table_name)
+        obj_id = self._counters[table_name]
+        pk_name = None
+        for column in obj.__table__.primary_key.columns:
+            pk_name = column.name
+            break
+        if pk_name and hasattr(obj, pk_name):
+            setattr(obj, pk_name, obj_id)
+        self._tables[table_name][record_id] = obj
+
+    def commit(self) -> None:
+        """Commit is a no-op for in-memory database."""
+        pass
+
+    def rollback(self) -> None:
+        """Rollback is a no-op for in-memory database."""
+        pass
+
+    def query(self, model) -> "QueryProxy":
+        """Return a query proxy for the given model."""
+        return QueryProxy(self, model)
+
+    def close(self) -> None:
+        """Close is a no-op for in-memory database."""
+        pass
+
+
+class QueryProxy:
+    """Proxy for SQLAlchemy-like query operations on in-memory database."""
+
+    def __init__(self, db: InMemoryDB, model: Any):
+        self.db = db
+        self.model = model
+        self._table_name = model.__tablename__
+
+    def order_by(self, column) -> "QueryProxy":
+        return self
+
+    def limit(self, count: int) -> "QueryProxy":
+        self._limit = count
+        return self
+
+    def all(self) -> List[Any]:
+        records = list(self.db._tables.get(self._table_name, {}).values())
+        if hasattr(self, '_limit'):
+            records = records[:self._limit]
+        return records
+
+    def first(self) -> Optional[Any]:
+        records = self.all()
+        return records[0] if records else None
+
 
 class DatabaseManager:
     """Database connection and session manager."""
