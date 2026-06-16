@@ -72,3 +72,17 @@
 /* Loading */
 .skelGrid { display: grid; gap: 16px; }
 .skelRow { height: 96px; }
+
+/* PriceInput dropdown styles */
+.priceInputDropdown {
+  position: absolute;
+  right: 0;
+  margin-top: 4px;
+  width: 11rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  z-index: 20;
+  padding: 4px 0;
+}

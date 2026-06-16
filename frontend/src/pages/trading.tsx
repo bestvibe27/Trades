@@ -5,6 +5,8 @@ import tradingAPI from "../services/tradingAPI";
 import { usePolling } from "../hooks/usePolling";
 import { TRADING_SYMBOLS } from "../utils/constants";
 import styles from "../styles/Trading.module.css";
+import { PriceInput, InputMode } from "../components/trading/PriceInput";
+import { calculateTpSlPrice } from "../utils/calculations";
 
 interface Position {
   symbol: string;
@@ -44,6 +46,10 @@ const TradingPage: React.FC = () => {
   const [mt5Error, setMt5Error] = useState<string>("");
   const [qSymbol, setQSymbol] = useState<string>("EURUSDm");
   const [qVolume, setQVolume] = useState<number>(0.1);
+  const [qTpMode, setQTpMode] = useState<InputMode>("price");
+  const [qTpValue, setQTpValue] = useState<number>(0);
+  const [qSlMode, setQSlMode] = useState<InputMode>("pips");
+  const [qSlValue, setQSlValue] = useState<number>(50);
   const [qQuote, setQQuote] = useState<{
     last: number;
     bid: number;
@@ -263,11 +269,28 @@ const TradingPage: React.FC = () => {
       );
       if (snapped !== qVolume) setQVolume(Number(snapped.toFixed(2)));
 
+      // Calculate TP/SL prices based on mode
+      const entryPrice = side === "buy" ? qQuote.ask : qQuote.bid;
+      const equity = account?.equity ?? 0;
+      
+      let tpPrice: number | undefined;
+      let slPrice: number | undefined;
+
+      if (qTpValue && isFinite(qTpValue) && qTpValue > 0) {
+        tpPrice = calculateTpSlPrice(qTpMode, qTpValue, entryPrice, snapped, qSymbol, equity, side);
+      }
+      
+      if (qSlValue && isFinite(qSlValue) && qSlValue > 0) {
+        slPrice = calculateTpSlPrice(qSlMode, qSlValue, entryPrice, snapped, qSymbol, equity, side);
+      }
+
       // Execute the trade
       const res = await tradingAPI.placeBrokerMarketOrder({
         symbol: qSymbol,
         side,
         volume: snapped,
+        sl: slPrice,
+        tp: tpPrice,
         comment: `Manual ${side.toUpperCase()} order from UI`,
       });
 
@@ -423,7 +446,7 @@ const TradingPage: React.FC = () => {
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </optgroup>
-                  <optgroup label="Stocks">
+<optgroup label="Stocks">
                     {TRADING_SYMBOLS.STOCKS.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
@@ -444,7 +467,7 @@ const TradingPage: React.FC = () => {
               </div>
             </div>
 
-            <div className={styles.sideToggle} role="radiogroup" aria-label="Order side">
+            <div className={styles.sideToggle}>
               <label className={`${styles.sideOption} ${qSide === "buy" ? styles.sideBuyActive : ""}`}>
                 <input type="radio" value="buy" checked={qSide === "buy"} onChange={() => setQSide("buy")} />
                 Buy
@@ -455,19 +478,33 @@ const TradingPage: React.FC = () => {
               </label>
             </div>
 
-            <div className={styles.quoteBox}>
-              <div className={styles.quoteCell}>
-                <div className={styles.quoteLabel}>Take Profit</div>
-                <div className={styles.quoteVal}>
-                  {qQuote ? (qSide === "buy" ? qQuote.ask : qQuote.bid).toFixed(5) : "—"}
-                </div>
-              </div>
-              <div className={styles.quoteCell}>
-                <div className={styles.quoteLabel}>Stop Loss</div>
-                <div className={styles.quoteVal}>
-                  {qQuote ? (qSide === "buy" ? qQuote.bid : qQuote.ask).toFixed(5) : "—"}
-                </div>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+              <PriceInput
+                label="TAKE PROFIT"
+                mode={qTpMode}
+                value={qTpValue}
+                onChange={setQTpValue}
+                onModeChange={setQTpMode}
+                entryPrice={qSide === "buy" ? qQuote?.ask ?? 0 : qQuote?.bid ?? 0}
+                volume={qVolume}
+                symbol={qSymbol}
+                equity={account?.equity ?? 0}
+                side={qSide}
+                disabled={orderDisabled}
+              />
+              <PriceInput
+                label="STOP LOSS"
+                mode={qSlMode}
+                value={qSlValue}
+                onChange={setQSlValue}
+                onModeChange={setQSlMode}
+                entryPrice={qSide === "buy" ? qQuote?.ask ?? 0 : qQuote?.bid ?? 0}
+                volume={qVolume}
+                symbol={qSymbol}
+                equity={account?.equity ?? 0}
+                side={qSide}
+                disabled={orderDisabled}
+              />
             </div>
 
             <div className={styles.submitRow}>

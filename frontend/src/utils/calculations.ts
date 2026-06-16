@@ -211,8 +211,86 @@ export const calculateRSI = (values: number[], period: number = 14): number[] =>
 };
 
 /**
- * Calculate Bollinger Bands
+ * Convert pips to price distance
+ * For forex pairs, 1 pip = 0.0001 for most pairs, but 0.01 for JPY pairs
+ * This is a simplified version - real implementation would need symbol-specific logic
  */
+export const pipsToPriceDistance = (pips: number, symbol: string = "EURUSD"): number => {
+  // JPY pairs have pip value of 0.01
+  const isJpyPair = symbol.includes("JPY");
+  const pipValue = isJpyPair ? 0.01 : 0.0001;
+  return pips * pipValue;
+};
+
+/**
+ * Get pip value for a symbol (simplified)
+ */
+export const getPipsFromPrice = (priceDistance: number, symbol: string = "EURUSD"): number => {
+  const isJpyPair = symbol.includes("JPY");
+  const pipValue = isJpyPair ? 0.01 : 0.0001;
+  return priceDistance / pipValue;
+};
+
+/**
+ * Calculate TP/SL price from mode value
+ */
+export const calculateTpSlPrice = (
+  mode: "price" | "pips" | "money" | "percent",
+  value: number,
+  entryPrice: number,
+  volume: number,
+  symbol: string,
+  equity: number,
+  side: "buy" | "sell"
+): number => {
+  switch (mode) {
+    case "price":
+      return value;
+    case "pips": {
+      const distance = pipsToPriceDistance(value, symbol);
+      return side === "buy" ? entryPrice + distance : entryPrice - distance;
+    }
+    case "money": {
+      // Convert money to price distance (simplified: assumes 1 unit = 1 pip for now)
+      return side === "buy" ? entryPrice + value : entryPrice - value;
+    }
+    case "percent": {
+      const priceDistance = (equity * value) / 100 / volume;
+      return side === "buy" ? entryPrice + priceDistance : entryPrice - priceDistance;
+    }
+    default:
+      return value;
+  }
+};
+
+/**
+ * Calculate TP/SL value from price (reverse calculation)
+ */
+export const calculateTpSlValue = (
+  price: number,
+  entryPrice: number,
+  symbol: string,
+  volume: number,
+  equity: number,
+  mode: "price" | "pips" | "money" | "percent",
+  side: "buy" | "sell"
+): number => {
+  const distance = Math.abs(price - entryPrice);
+  
+  switch (mode) {
+    case "price":
+      return price;
+    case "pips":
+      return getPipsFromPrice(distance, symbol);
+    case "money":
+      return distance;
+    case "percent":
+      return (distance * volume) / equity * 100;
+    default:
+      return price;
+  }
+};
+
 export const calculateBollingerBands = (
   values: number[],
   period: number = 20,
@@ -221,17 +299,17 @@ export const calculateBollingerBands = (
   const sma = calculateSMA(values, period);
   const upper: number[] = [];
   const lower: number[] = [];
-  
+
   for (let i = period - 1; i < values.length; i++) {
     const slice = values.slice(i - period + 1, i + 1);
     const mean = sma[i - period + 1];
     const variance = slice.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / period;
     const standardDeviation = Math.sqrt(variance);
-    
+
     upper.push(mean + (standardDeviations * standardDeviation));
     lower.push(mean - (standardDeviations * standardDeviation));
   }
-  
+
   return {
     upper,
     middle: sma,
