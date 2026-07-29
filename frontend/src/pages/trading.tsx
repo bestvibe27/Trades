@@ -516,7 +516,7 @@ const TradingPage: React.FC = () => {
               <OrderEntryPanel
                 state={orderState}
                 config={instrumentConfig}
-                currentPrice={qSide === "buy" ? qQuote?.ask ?? 0 : qQuote?.bid ?? 0}
+                currentPrice={orderState.side === "buy" ? qQuote?.ask ?? 0 : qQuote?.bid ?? 0}
                 equity={account?.equity ?? 0}
                 marginRequired={marginRequired}
                 isLoading={false}
