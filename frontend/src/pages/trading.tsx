@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Layout from "../components/common/Layout";
 import { get } from "../services/api";
 import tradingAPI from "../services/tradingAPI";
 import { usePolling } from "../hooks/usePolling";
 import { TRADING_SYMBOLS } from "../utils/constants";
 import styles from "../styles/Trading.module.css";
-import { PriceInput, InputMode } from "../components/trading/PriceInput";
+import { OrderEntryPanel } from "../components/trading/OrderEntryPanel";
+import { OrderEntryState, InstrumentConfig } from "@/types/trading";
 import { calculateTpSlPrice } from "../utils/calculations";
 
 interface Position {
@@ -45,17 +46,11 @@ const TradingPage: React.FC = () => {
   const [mt5Account, setMt5Account] = useState<any>(null);
   const [mt5Error, setMt5Error] = useState<string>("");
   const [qSymbol, setQSymbol] = useState<string>("EURUSDm");
-  const [qVolume, setQVolume] = useState<number>(0.1);
-  const [qTpMode, setQTpMode] = useState<InputMode>("price");
-  const [qTpValue, setQTpValue] = useState<number>(0);
-  const [qSlMode, setQSlMode] = useState<InputMode>("pips");
-  const [qSlValue, setQSlValue] = useState<number>(50);
   const [qQuote, setQQuote] = useState<{
     last: number;
     bid: number;
     ask: number;
   } | null>(null);
-  const [qSide, setQSide] = useState<"buy" | "sell">("buy");
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [account, setAccount] = useState<{
     balance: number;
@@ -70,6 +65,43 @@ const TradingPage: React.FC = () => {
     volume_max?: number;
   } | null>(null);
   const [uiError, setUiError] = useState<string>("");
+
+  // OrderEntryPanel state
+  const [orderState, setOrderState] = useState<OrderEntryState>({
+    symbol: "EURUSDm",
+    side: "buy",
+    volume: 0.1,
+    volumeMode: "lots",
+    riskAmount: 100,
+    riskSlLevel: 50,
+    takeProfit: {
+      enabled: false,
+      mode: "pips",
+      canonicalPrice: 0,
+      displayValues: { price: 0, pips: 0, money: 0, percent: 0 },
+    },
+    stopLoss: {
+      enabled: false,
+      mode: "pips",
+      canonicalPrice: 0,
+      displayValues: { price: 0, pips: 0, money: 0, percent: 0 },
+    },
+    errors: {},
+  });
+
+  const [instrumentConfig, setInstrumentConfig] = useState<InstrumentConfig>({
+    symbol: "EURUSDm",
+    minLot: 0.01,
+    maxLot: 100,
+    stepLot: 0.01,
+    pipSize: 0.0001,
+    contractSize: 100000,
+    stopLevelPips: 20,
+    marginRequirement: 1,
+    isJpyPair: false,
+  });
+
+  const [marginRequired, setMarginRequired] = useState<number>(0);
 
   useEffect(() => {
     fetchData();
@@ -200,17 +232,35 @@ const TradingPage: React.FC = () => {
       const info = await tradingAPI.getBrokerSymbolInfo(symbol);
       if (info && info.found) {
         setSymInfo(info);
-        // Snap volume to broker step and min
+        
+        // Update instrument config for OrderEntryPanel
         const min = info.volume_min ?? 0.01;
         const step = info.volume_step ?? 0.01;
         const max = info.volume_max ?? 100.0;
-        const vol = isFinite(qVolume) ? qVolume : min;
+        const digits = info.digits ?? 5;
+        const isJpyPair = symbol.includes("JPY");
+        const pipSize = Math.pow(10, -digits);
+        
+        setInstrumentConfig({
+          symbol,
+          minLot: min,
+          maxLot: max,
+          stepLot: step,
+          pipSize,
+          contractSize: 100000, // Standard Forex lot
+          stopLevelPips: 20, // Default stop level
+          marginRequirement: 1,
+          isJpyPair,
+        });
+        
+        // Snap volume to broker step and min
+        const vol = isFinite(orderState.volume) ? orderState.volume : min;
         const snapped = Math.max(
           min,
           Math.min(max, Math.floor(vol / step) * step),
         );
-        if (snapped !== qVolume && !Number.isNaN(snapped))
-          setQVolume(Number(snapped.toFixed(2)));
+        if (snapped !== orderState.volume && !Number.isNaN(snapped))
+          setOrderState(prev => ({ ...prev, volume: Number(snapped.toFixed(2)) }));
       }
     } catch {}
   };
@@ -239,96 +289,103 @@ const TradingPage: React.FC = () => {
     }
   };
 
-  const submitMarketOrder = async (side: "buy" | "sell") => {
-    try {
-      setSubmitting(true);
-      setUiError("");
-
-      // Validate quote
-      if (
-        !qQuote ||
-        !isFinite(qQuote.bid) ||
-        !isFinite(qQuote.ask) ||
-        qQuote.bid <= 0 ||
-        qQuote.ask <= 0
-      ) {
-        setUiError(
-          "Cannot place order: quote is unavailable or zero. Check symbol.",
-        );
-        return;
-      }
-
-      // Validate/snap volume
-      const min = symInfo?.volume_min ?? 0.01;
-      const step = symInfo?.volume_step ?? 0.01;
-      const max = symInfo?.volume_max ?? 100.0;
-      const vol = isFinite(qVolume) ? qVolume : min;
-      const snapped = Math.max(
-        min,
-        Math.min(max, Math.floor(vol / step) * step),
-      );
-      if (snapped !== qVolume) setQVolume(Number(snapped.toFixed(2)));
-
-      // Calculate TP/SL prices based on mode
-      const entryPrice = side === "buy" ? qQuote.ask : qQuote.bid;
-      const equity = account?.equity ?? 0;
-      
-      let tpPrice: number | undefined;
-      let slPrice: number | undefined;
-
-      if (qTpValue && isFinite(qTpValue) && qTpValue > 0) {
-        tpPrice = calculateTpSlPrice(qTpMode, qTpValue, entryPrice, snapped, qSymbol, equity, side);
-      }
-      
-      if (qSlValue && isFinite(qSlValue) && qSlValue > 0) {
-        slPrice = calculateTpSlPrice(qSlMode, qSlValue, entryPrice, snapped, qSymbol, equity, side);
-      }
-
-      // Execute the trade
-      const res = await tradingAPI.placeBrokerMarketOrder({
-        symbol: qSymbol,
-        side,
-        volume: snapped,
-        sl: slPrice,
-        tp: tpPrice,
-        comment: `Manual ${side.toUpperCase()} order from UI`,
-      });
-
-      // Check if trade was successful
-      if (res.success) {
-        // Show success message
-        setUiError(
-          `✅ Trade executed successfully! ${side.toUpperCase()} ${snapped} lots of ${qSymbol} at ${res.price?.toFixed(5) || "market price"}`,
-        );
-
-        // Refresh data to show the new trade
-        await Promise.all([
-          fetchData(),
-          fetchQuote(qSymbol),
-          fetchAccount(),
-          fetchPositions(),
-        ]);
-
-        // Clear success message after 5 seconds
-        setTimeout(() => setUiError(""), 5000);
-      } else {
-        setUiError(`❌ Trade failed: ${res.error || "Unknown error"}`);
-      }
-
-      return res;
-    } catch (e) {
-      setUiError(`❌ Error placing order: ${String(e)}`);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const fetchAccount = async () => {
     try {
       const acc = await tradingAPI.getBrokerAccount();
       setAccount(acc);
     } catch {}
   };
+
+  // OrderEntryPanel handlers
+  const handleOrderStateChange = useCallback(
+    (updates: Partial<OrderEntryState>) => {
+      setOrderState(prev => ({ ...prev, ...updates }));
+    },
+    []
+  );
+
+  const handleOrderSubmit = useCallback(
+    async (order: {
+      symbol: string;
+      side: 'buy' | 'sell';
+      volume: number;
+      takeProfit?: number;
+      stopLoss?: number;
+    }) => {
+      try {
+        setSubmitting(true);
+        setUiError("");
+
+        // Validate quote
+        if (
+          !qQuote ||
+          !isFinite(qQuote.bid) ||
+          !isFinite(qQuote.ask) ||
+          qQuote.bid <= 0 ||
+          qQuote.ask <= 0
+        ) {
+          setUiError(
+            "Cannot place order: quote is unavailable or zero. Check symbol.",
+          );
+          return;
+        }
+
+        // Prepare order object for API
+        const res = await tradingAPI.placeBrokerMarketOrder({
+          symbol: order.symbol,
+          side: order.side,
+          volume: order.volume,
+          tp: order.takeProfit,
+          sl: order.stopLoss,
+          comment: `Manual ${order.side.toUpperCase()} order from UI`,
+        });
+
+        if (res.success) {
+          // Snap volume for display
+          const min = symInfo?.volume_min ?? 0.01;
+          const step = symInfo?.volume_step ?? 0.01;
+          const max = symInfo?.volume_max ?? 100.0;
+          const snapped = Math.max(
+            min,
+            Math.min(max, Math.floor(order.volume / step) * step),
+          );
+
+          setUiError(
+            `✅ Trade executed successfully! ${order.side.toUpperCase()} ${snapped} lots of ${order.symbol} at ${res.price?.toFixed(5) || "market price"}`,
+          );
+
+          // Refresh data to show the new trade
+          await Promise.all([
+            fetchData(),
+            fetchQuote(order.symbol),
+            fetchAccount(),
+            fetchPositions(),
+          ]);
+
+          // Clear success message after 5 seconds
+          setTimeout(() => setUiError(""), 5000);
+          
+          // Reset order state
+          setOrderState(prev => ({
+            ...prev,
+            volume: instrumentConfig.minLot,
+            takeProfit: { ...prev.takeProfit, enabled: false },
+            stopLoss: { ...prev.stopLoss, enabled: false },
+            errors: {},
+          }));
+        } else {
+          setUiError(`❌ Trade failed: ${res.error || "Unknown error"}`);
+        }
+
+        return res;
+      } catch (e) {
+        setUiError(`❌ Error placing order: ${String(e)}`);
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [qQuote, symInfo, instrumentConfig.minLot, qSymbol]
+  );
 
   if (loading) {
     return (
@@ -410,21 +467,23 @@ const TradingPage: React.FC = () => {
             </div>
           </div>
 
-          <div className={styles.panel}>
-            <h2 className={styles.panelTitle}>Quick Market Order</h2>
-            <div className={styles.formGrid}>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="t-symbol">Symbol</label>
+          <div style={{ display: "flex", justifyContent: "center", minHeight: "auto" }}>
+            <div>
+              <div style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.875rem" }}>
+                  Select Symbol
+                </label>
                 <select
-                  id="t-symbol"
                   className="input"
                   value={qSymbol}
                   onChange={(e) => {
                     const v = e.target.value;
                     setQSymbol(v);
+                    setOrderState(prev => ({ ...prev, symbol: v }));
                     fetchQuote(v);
                     fetchSymbolInfo(v);
                   }}
+                  style={{ width: "100%" }}
                 >
                   <optgroup label="Forex">
                     {TRADING_SYMBOLS.FOREX.map((s) => (
@@ -446,88 +505,33 @@ const TradingPage: React.FC = () => {
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </optgroup>
-<optgroup label="Stocks">
+                  <optgroup label="Stocks">
                     {TRADING_SYMBOLS.STOCKS.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </optgroup>
                 </select>
               </div>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="t-volume">Volume (lots)</label>
-                <input
-                  id="t-volume"
-                  className="input"
-                  type="number"
-                  step={(symInfo?.volume_step ?? 0.01).toString()}
-                  min={(symInfo?.volume_min ?? 0.01).toString()}
-                  value={qVolume}
-                  onChange={(e) => setQVolume(parseFloat(e.target.value))}
-                />
-              </div>
-            </div>
 
-            <div className={styles.sideToggle}>
-              <label className={`${styles.sideOption} ${qSide === "buy" ? styles.sideBuyActive : ""}`}>
-                <input type="radio" value="buy" checked={qSide === "buy"} onChange={() => setQSide("buy")} />
-                Buy
-              </label>
-              <label className={`${styles.sideOption} ${qSide === "sell" ? styles.sideSellActive : ""}`}>
-                <input type="radio" value="sell" checked={qSide === "sell"} onChange={() => setQSide("sell")} />
-                Sell
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-              <PriceInput
-                label="TAKE PROFIT"
-                mode={qTpMode}
-                value={qTpValue}
-                onChange={setQTpValue}
-                onModeChange={setQTpMode}
-                entryPrice={qSide === "buy" ? qQuote?.ask ?? 0 : qQuote?.bid ?? 0}
-                volume={qVolume}
-                symbol={qSymbol}
+              <OrderEntryPanel
+                state={orderState}
+                config={instrumentConfig}
+                currentPrice={qSide === "buy" ? qQuote?.ask ?? 0 : qQuote?.bid ?? 0}
                 equity={account?.equity ?? 0}
-                side={qSide}
+                marginRequired={marginRequired}
+                isLoading={false}
+                isSubmitting={submitting}
+                onStateChange={handleOrderStateChange}
+                onSubmit={handleOrderSubmit}
                 disabled={orderDisabled}
               />
-              <PriceInput
-                label="STOP LOSS"
-                mode={qSlMode}
-                value={qSlValue}
-                onChange={setQSlValue}
-                onModeChange={setQSlMode}
-                entryPrice={qSide === "buy" ? qQuote?.ask ?? 0 : qQuote?.bid ?? 0}
-                volume={qVolume}
-                symbol={qSymbol}
-                equity={account?.equity ?? 0}
-                side={qSide}
-                disabled={orderDisabled}
-              />
+              
+              {uiError ? (
+                <div style={{ marginTop: "1rem" }} className={`${styles.alert} ${uiError.startsWith("✅") ? styles.alertSuccess : styles.alertError}`}>
+                  {uiError}
+                </div>
+              ) : null}
             </div>
-
-            <div className={styles.submitRow}>
-              <button
-                className="btn btn-success"
-                disabled={orderDisabled}
-                onClick={() => submitMarketOrder("buy")}
-              >
-                {submitting ? "Placing…" : "Buy"}
-              </button>
-              <button
-                className="btn btn-danger"
-                disabled={orderDisabled}
-                onClick={() => submitMarketOrder("sell")}
-              >
-                {submitting ? "Placing…" : "Sell"}
-              </button>
-            </div>
-            {uiError ? (
-              <div className={`${styles.alert} ${isSuccess ? styles.alertSuccess : styles.alertError}`}>
-                {uiError}
-              </div>
-            ) : null}
           </div>
         </div>
 
