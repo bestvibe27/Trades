@@ -315,6 +315,43 @@ export interface TradingNotification {
   createdAt: string;
 }
 
+// Order Entry Panel Types
+export interface InstrumentConfig {
+  symbol: string;
+  minLot: number;
+  maxLot: number;
+  stepLot: number;
+  pipSize: number; // e.g., 0.0001 for EURUSD
+  contractSize: number; // e.g., 100000 for standard Forex lot
+  stopLevelPips: number; // minimum distance from current price
+  marginRequirement: number; // % or absolute units
+  isJpyPair: boolean; // for pip calculation
+}
+
+export interface TpSlMode {
+  enabled: boolean;
+  mode: 'price' | 'pips' | 'money' | '%';
+  canonicalPrice: number; // store one source of truth
+  displayValues: {
+    price: number;
+    pips: number;
+    money: number;
+    percent: number;
+  };
+}
+
+export interface OrderEntryState {
+  symbol: string;
+  side: 'buy' | 'sell';
+  volume: number;
+  volumeMode: 'lots' | 'risk';
+  riskAmount?: number; // for risk calculator mode
+  riskSlLevel?: number; // SL distance for risk calc
+  takeProfit: TpSlMode;
+  stopLoss: TpSlMode;
+  errors: Record<string, string>;
+}
+
 
 
 

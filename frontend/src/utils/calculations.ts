@@ -317,6 +317,208 @@ export const calculateBollingerBands = (
   };
 };
 
+// ============================================================================
+// ORDER ENTRY PANEL CONVERSION UTILITIES
+// ============================================================================
+
+/**
+ * Convert pips to price distance (accounting for JPY pairs with 0.01 pip value)
+ */
+export const convertPipsToPrice = (pips: number, isJpyPair: boolean): number => {
+  const pipValue = isJpyPair ? 0.01 : 0.0001;
+  return pips * pipValue;
+};
+
+/**
+ * Convert price distance back to pips
+ */
+export const convertPriceToPips = (priceDistance: number, isJpyPair: boolean): number => {
+  const pipValue = isJpyPair ? 0.01 : 0.0001;
+  return priceDistance / pipValue;
+};
+
+/**
+ * Convert price distance to money (P&L) amount
+ * money = price distance × volume × contract size
+ */
+export const convertPriceToMoney = (
+  priceDistance: number,
+  volume: number,
+  contractSize: number
+): number => {
+  return priceDistance * volume * contractSize;
+};
+
+/**
+ * Convert price distance to percentage of equity
+ * percent = (price distance × volume × contract size / equity) × 100
+ */
+export const convertPriceToPercent = (
+  priceDistance: number,
+  volume: number,
+  contractSize: number,
+  equity: number
+): number => {
+  if (equity === 0) return 0;
+  return (convertPriceToMoney(priceDistance, volume, contractSize) / equity) * 100;
+};
+
+/**
+ * Reverse: Convert money (P&L) to price distance
+ * price distance = money / (volume × contract size)
+ */
+export const convertMoneyToPrice = (
+  money: number,
+  volume: number,
+  contractSize: number
+): number => {
+  if (volume === 0 || contractSize === 0) return 0;
+  return money / (volume * contractSize);
+};
+
+/**
+ * Reverse: Convert percentage to price distance
+ * price distance = (percent × equity / 100) / (volume × contract size)
+ */
+export const convertPercentToPrice = (
+  percent: number,
+  volume: number,
+  contractSize: number,
+  equity: number
+): number => {
+  const money = (percent * equity) / 100;
+  return convertMoneyToPrice(money, volume, contractSize);
+};
+
+/**
+ * Sync all display modes from a canonical price distance
+ * Returns object with all four modes calculated from the canonical price
+ */
+export const syncAllModes = (
+  canonicalPrice: number,
+  isJpyPair: boolean,
+  volume: number,
+  contractSize: number,
+  equity: number
+): {
+  price: number;
+  pips: number;
+  money: number;
+  percent: number;
+} => {
+  return {
+    price: canonicalPrice,
+    pips: convertPriceToPips(canonicalPrice, isJpyPair),
+    money: convertPriceToMoney(canonicalPrice, volume, contractSize),
+    percent: convertPriceToPercent(canonicalPrice, volume, contractSize, equity),
+  };
+};
+
+/**
+ * Convert from any mode to canonical price distance
+ */
+export const modeToCanonicalPrice = (
+  mode: 'price' | 'pips' | 'money' | '%',
+  value: number,
+  isJpyPair: boolean,
+  volume: number,
+  contractSize: number,
+  equity: number
+): number => {
+  switch (mode) {
+    case 'price':
+      return value;
+    case 'pips':
+      return convertPipsToPrice(value, isJpyPair);
+    case 'money':
+      return convertMoneyToPrice(value, volume, contractSize);
+    case '%':
+      return convertPercentToPrice(value, volume, contractSize, equity);
+    default:
+      return 0;
+  }
+};
+
+/**
+ * Validate volume against min/max/step constraints
+ */
+export const validateVolume = (
+  volume: number,
+  minLot: number,
+  maxLot: number,
+  stepLot: number
+): { isValid: boolean; error?: string } => {
+  if (volume < minLot) {
+    return { isValid: false, error: `Minimum volume is ${minLot}` };
+  }
+  if (volume > maxLot) {
+    return { isValid: false, error: `Maximum volume is ${maxLot}` };
+  }
+  
+  // Check if volume is a multiple of step
+  const remainder = (volume - minLot) % stepLot;
+  const tolerance = 1e-10; // for floating point comparison
+  if (Math.abs(remainder) > tolerance && Math.abs(remainder - stepLot) > tolerance) {
+    return { isValid: false, error: `Volume must be a multiple of ${stepLot}` };
+  }
+  
+  return { isValid: true };
+};
+
+/**
+ * Validate TP/SL level against stop-level constraint
+ */
+export const validateTpSlStopLevel = (
+  level: number,
+  currentPrice: number,
+  side: 'buy' | 'sell',
+  stopLevelPips: number,
+  isJpyPair: boolean
+): { isValid: boolean; withinStopLevel: boolean; error?: string } => {
+  const minDistance = convertPipsToPrice(stopLevelPips, isJpyPair);
+  const distance = Math.abs(level - currentPrice);
+  
+  const withinStopLevel = distance < minDistance;
+  
+  if (withinStopLevel) {
+    return {
+      isValid: false,
+      withinStopLevel: true,
+      error: `Within broker stop-level (${stopLevelPips} pips)`,
+    };
+  }
+  
+  return { isValid: true, withinStopLevel: false };
+};
+
+/**
+ * Calculate lot size from risk amount and SL distance
+ * lotSize = riskAmount / (slDistance × volume × contractSize)
+ */
+export const calculateLotSizeFromRisk = (
+  riskAmount: number,
+  slDistancePips: number,
+  contractSize: number,
+  isJpyPair: boolean
+): number => {
+  const slDistancePrice = convertPipsToPrice(slDistancePips, isJpyPair);
+  if (slDistancePrice === 0) return 0;
+  return riskAmount / (slDistancePrice * contractSize);
+};
+
+/**
+ * Calculate risk amount from lot size and SL distance
+ */
+export const calculateRiskFromLotSize = (
+  volume: number,
+  slDistancePips: number,
+  contractSize: number,
+  isJpyPair: boolean
+): number => {
+  const slDistancePrice = convertPipsToPrice(slDistancePips, isJpyPair);
+  return slDistancePrice * volume * contractSize;
+};
+
 
 
 
