@@ -22,6 +22,7 @@ export interface TpSlControlProps {
   side: 'buy' | 'sell';
   disabled?: boolean;
   errors?: Record<string, string>;
+  compact?: boolean;
 }
 
 const MODE_LABELS: Record<string, string> = {
@@ -65,6 +66,7 @@ export const TpSlControl: React.FC<TpSlControlProps> = ({
   side,
   disabled = false,
   errors = {},
+  compact = false,
 }) => {
   const isStopLoss = label === 'Stop Loss';
   const errorKey = isStopLoss ? 'stopLoss' : 'takeProfit';
@@ -148,6 +150,61 @@ export const TpSlControl: React.FC<TpSlControlProps> = ({
     }
     return `≈ ${displayValues.percent.toFixed(2)}%`;
   };
+
+  if (compact) {
+    // Compact mode for Exness-style panel
+    return (
+      <div className="space-y-2">
+        {/* Mode Selector - Compact */}
+        <div className="grid grid-cols-4 gap-1">
+          {(['price', 'pips', 'money', '%'] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => onModeChange(mode)}
+              disabled={disabled}
+              className={`rounded-md py-1 px-1.5 text-xs font-medium transition-colors ${
+                state.mode === mode
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              } disabled:opacity-50`}
+            >
+              {MODE_LABELS[mode]}
+            </button>
+          ))}
+        </div>
+
+        {/* Value Input - Compact */}
+        <div className="flex gap-2">
+          <input
+            type="number"
+            value={displayValues[state.mode].toString()}
+            onChange={(e) => handleValueChange(parseFloat(e.target.value) || 0)}
+            placeholder={getInputPlaceholder()}
+            disabled={disabled}
+            className={`flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-xs text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none ${
+              modeError ? 'border-red-500' : ''
+            }`}
+          />
+          <button className="rounded-lg border border-gray-700 bg-gray-900 px-2 py-2 text-gray-400 hover:bg-gray-800 transition-colors text-xs font-bold">
+            −
+          </button>
+          <button className="rounded-lg border border-gray-700 bg-gray-900 px-2 py-2 text-gray-400 hover:bg-gray-800 transition-colors text-xs font-bold">
+            +
+          </button>
+        </div>
+
+        {modeError && (
+          <p className="text-xs text-red-400">{modeError}</p>
+        )}
+
+        {stopLevelWarning && (
+          <div className="rounded-md bg-red-900 bg-opacity-30 border border-red-700 p-2">
+            <p className="text-xs text-red-300">⚠ {stopLevelWarning}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3 rounded-lg border border-gray-700 bg-gray-800 p-4">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface PnLData {
   date: string;
@@ -51,10 +51,15 @@ const PnLChart: React.FC<PnLChartProps> = ({
             }}
           />
           <Bar 
-            dataKey={showCumulative ? "cumulative" : "pnl"} 
-            fill={(entry: any) => entry.pnl >= 0 ? "#10b981" : "#ef4444"}
+            dataKey={showCumulative ? "cumulative" : "pnl"}
             radius={[2, 2, 0, 0]}
-          />
+          >
+            {data.map((entry, index) => {
+              const value = showCumulative ? entry.cumulative : entry.pnl;
+              const fill = value >= 0 ? "#10b981" : "#ef4444";
+              return <Cell key={`cell-${index}`} fill={fill} />;
+            })}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
