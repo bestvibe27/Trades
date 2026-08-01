@@ -2,6 +2,8 @@
  * TypeScript type definitions for API requests and responses
  */
 
+import { Strategy } from './trading';
+
 // Base API response structure
 export interface ApiResponse<T = any> {
   success: boolean;

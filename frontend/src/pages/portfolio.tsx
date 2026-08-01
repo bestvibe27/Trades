@@ -64,7 +64,7 @@ const PortfolioPage: React.FC = () => {
   usePolling(async () => {
     try {
       const res = await tradingAPI.getBrokerPositions();
-      const list: PositionRow[] = (res.positions || []).slice();
+      const list = (res.positions || []).slice() as PositionRow[];
       // newest first
       list.sort((a, b) => {
         const at = a.time ? new Date(a.time).getTime() : 0;
@@ -107,7 +107,7 @@ const PortfolioPage: React.FC = () => {
       const balance = acc.balance ?? 0;
       const free = acc.free_margin ?? 0;
       const used = Math.max(0, balance - free);
-      const posList: PositionRow[] = (posRes.positions || []).slice();
+      const posList = (posRes.positions || []).slice() as PositionRow[];
       posList.sort((a, b) => {
         const at = a.time ? new Date(a.time).getTime() : 0;
         const bt = b.time ? new Date(b.time).getTime() : 0;

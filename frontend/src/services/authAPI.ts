@@ -96,7 +96,7 @@ class AuthAPI {
    * Logout current user
    */
   async logout(): Promise<void> {
-    return post<void>(`${this.baseUrl}/logout`);
+    return post<void>(`${this.baseUrl}/logout`, null);
   }
 
   /**
@@ -152,14 +152,14 @@ class AuthAPI {
    * Resend email verification
    */
   async resendEmailVerification(): Promise<void> {
-    return post<void>(`${this.baseUrl}/resend-verification`);
+    return post<void>(`${this.baseUrl}/resend-verification`, null);
   }
 
   /**
    * Setup two-factor authentication
    */
   async setupTwoFactor(): Promise<TwoFactorSetup> {
-    return post<TwoFactorSetup>(`${this.baseUrl}/2fa/setup`);
+    return post<TwoFactorSetup>(`${this.baseUrl}/2fa/setup`, null);
   }
 
   /**
@@ -187,14 +187,14 @@ class AuthAPI {
    * Revoke user session
    */
   async revokeSession(sessionId: string): Promise<void> {
-    return post<void>(`${this.baseUrl}/sessions/${sessionId}/revoke`);
+    return post<void>(`${this.baseUrl}/sessions/${sessionId}/revoke`, null);
   }
 
   /**
    * Revoke all sessions except current
    */
   async revokeAllSessions(): Promise<void> {
-    return post<void>(`${this.baseUrl}/sessions/revoke-all`);
+    return post<void>(`${this.baseUrl}/sessions/revoke-all`, null);
   }
 
   /**
@@ -264,7 +264,7 @@ class AuthAPI {
    * Revoke API key
    */
   async revokeApiKey(keyId: string): Promise<void> {
-    return post<void>(`${this.baseUrl}/api-keys/${keyId}/revoke`);
+    return post<void>(`${this.baseUrl}/api-keys/${keyId}/revoke`, null);
   }
 
   /**
@@ -278,14 +278,14 @@ class AuthAPI {
    * Enable security alerts
    */
   async enableSecurityAlerts(): Promise<void> {
-    return post<void>(`${this.baseUrl}/security-alerts/enable`);
+    return post<void>(`${this.baseUrl}/security-alerts/enable`, null);
   }
 
   /**
    * Disable security alerts
    */
   async disableSecurityAlerts(): Promise<void> {
-    return post<void>(`${this.baseUrl}/security-alerts/disable`);
+    return post<void>(`${this.baseUrl}/security-alerts/disable`, null);
   }
 }
 

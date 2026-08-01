@@ -129,10 +129,12 @@ export const useWebSocket = (url: string, options: { reconnectInterval?: number;
         }));
       };
 
-      wsRef.current.addEventListener('open', handleOpen);
-      wsRef.current.addEventListener('message', handleMessage);
-      wsRef.current.addEventListener('close', handleClose);
-      wsRef.current.addEventListener('error', handleError);
+       if (!wsRef.current) return;
+
+       wsRef.current.addEventListener('open', handleOpen);
+       wsRef.current.addEventListener('message', handleMessage);
+       wsRef.current.addEventListener('close', handleClose);
+       wsRef.current.addEventListener('error', handleError);
 
     } catch (error) {
       setState(prev => ({

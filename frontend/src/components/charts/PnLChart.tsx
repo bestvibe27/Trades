@@ -52,7 +52,7 @@ const PnLChart: React.FC<PnLChartProps> = ({
           />
           <Bar 
             dataKey={showCumulative ? "cumulative" : "pnl"} 
-            fill={(entry: any) => entry.pnl >= 0 ? "#10b981" : "#ef4444"}
+            fill={((entry: any) => entry.pnl >= 0 ? "#10b981" : "#ef4444") as any}
             radius={[2, 2, 0, 0]}
           />
         </BarChart>
