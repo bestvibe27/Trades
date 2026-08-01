@@ -12,11 +12,26 @@
 .cardValue { font-size: 22px; font-weight: 800; margin-top: 6px; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 
 /* Top panels: status + order ticket */
-.topGrid { display: grid; grid-template-columns: 1fr; gap: 16px; }
-@media (min-width: 900px) { .topGrid { grid-template-columns: 1fr 1.3fr; } }
+.topGrid { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
+@media (min-width: 900px) { .topGrid { grid-template-columns: 1fr auto; } }
 
 .panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 20px; }
 .panelTitle { font-size: 15px; font-weight: 700; margin: 0 0 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* Quick Market: panel hugs widget width */
+.quickMarketPanel {
+  width: 100%;
+  max-width: 320px;
+  padding: 16px;
+  justify-self: center;
+}
+@media (min-width: 900px) {
+  .quickMarketPanel {
+    width: 320px;
+    max-width: 320px;
+    justify-self: end;
+  }
+}
 
 /* Status panel */
 .statusRow { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }

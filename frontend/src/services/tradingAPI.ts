@@ -130,7 +130,43 @@ class TradingAPI {
     return post(`${this.brokerUrl}/order/market`, params);
   }
 
-  async getBrokerAccount(): Promise<{ balance: number; equity: number; free_margin: number }>{
+  async placeBrokerPendingOrder(params: {
+    symbol: string;
+    side: 'buy' | 'sell';
+    volume: number;
+    price: number;
+    sl?: number;
+    tp?: number;
+    comment?: string;
+  }): Promise<any> {
+    return post(`${this.brokerUrl}/order/pending`, params);
+  }
+
+  async getBrokerOrderPreview(params: {
+    symbol: string;
+    side: 'buy' | 'sell';
+    volume: number;
+    price?: number;
+  }): Promise<{
+    fees: number;
+    margin: number;
+    leverage: number;
+    contract_size: number;
+    swap_long: number;
+    swap_short: number;
+    currency: string;
+    free_margin?: number;
+  }> {
+    const q = new URLSearchParams({
+      symbol: params.symbol,
+      side: params.side,
+      volume: String(params.volume),
+    });
+    if (params.price != null) q.append('price', String(params.price));
+    return get(`${this.brokerUrl}/order/preview?${q.toString()}`);
+  }
+
+  async getBrokerAccount(): Promise<{ balance: number; equity: number; free_margin: number; leverage?: number }>{
     return get(`${this.brokerUrl}/account`);
   }
 
@@ -138,7 +174,20 @@ class TradingAPI {
     return get(`${this.brokerUrl}/symbols`);
   }
 
-  async getBrokerSymbolInfo(symbol: string): Promise<{ symbol: string; found: boolean; digits?: number; volume_min?: number; volume_step?: number; volume_max?: number }>{
+  async getBrokerSymbolInfo(symbol: string): Promise<{
+    symbol: string;
+    found: boolean;
+    digits?: number;
+    volume_min?: number;
+    volume_step?: number;
+    volume_max?: number;
+    point?: number;
+    contract_size?: number;
+    trade_stops_level?: number;
+    swap_long?: number;
+    swap_short?: number;
+    trade_tick_size?: number;
+  }>{
     return get(`${this.brokerUrl}/symbols/${encodeURIComponent(symbol)}`);
   }
 

@@ -1,0 +1,518 @@
+.widget {
+  --qm-border: var(--border);
+  --qm-input-bg: var(--bg-elev-2);
+  --qm-text-main: var(--text);
+  --qm-text-dim: var(--text-dim);
+  --qm-sell-red: #f0524d;
+  --qm-sell-red-bg: var(--loss-soft);
+  --qm-buy-blue: var(--accent);
+  --qm-buy-blue-bg: var(--accent-soft);
+  --qm-accent-orange: #f7931a;
+
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  color: var(--qm-text-main);
+  box-shadow: none;
+  user-select: none;
+  font-family: var(--font-sans);
+  box-sizing: border-box;
+}
+
+.widget *,
+.widget *::before,
+.widget *::after {
+  box-sizing: border-box;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.symbolIcon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--qm-accent-orange);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #1b2028;
+}
+
+.headerTitle {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.closeBtn {
+  color: var(--qm-text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  background: none;
+  border: none;
+  padding: 4px;
+  border-radius: 4px;
+}
+.closeBtn:hover,
+.closeBtn:focus-visible {
+  color: var(--qm-text-main);
+  outline: 2px solid var(--qm-buy-blue);
+  outline-offset: 2px;
+}
+
+.formSelect {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--qm-input-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  color: var(--qm-text-main);
+  width: 100%;
+}
+
+.symbolSelect {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--qm-text-main);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  padding: 0;
+}
+
+.chevron {
+  color: var(--qm-text-dim);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.priceRow {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.priceBox {
+  flex: 1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: center;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: none;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  font-family: inherit;
+}
+.priceBox:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.sell {
+  border-color: var(--qm-sell-red);
+  background: var(--qm-sell-red-bg);
+}
+.buy {
+  border-color: var(--qm-buy-blue);
+  background: var(--qm-buy-blue-bg);
+}
+
+.sellActive {
+  background: var(--qm-sell-red);
+}
+.buyActive {
+  background: var(--qm-buy-blue);
+}
+
+.priceLabel {
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+.sell .priceLabel {
+  color: var(--qm-sell-red);
+}
+.buy .priceLabel {
+  color: var(--qm-buy-blue);
+}
+.sellActive .priceLabel,
+.buyActive .priceLabel {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.priceValue {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.sell .priceValue {
+  color: var(--qm-sell-red);
+}
+.buy .priceValue {
+  color: var(--qm-buy-blue);
+}
+.sellActive .priceValue,
+.buyActive .priceValue {
+  color: #fff;
+}
+
+.spreadBadge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--card);
+  border: 1px solid var(--qm-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  color: var(--qm-text-dim);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.percentBarRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.sellPct {
+  color: var(--qm-sell-red);
+}
+.buyPct {
+  color: var(--qm-buy-blue);
+}
+
+.barTrack {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  overflow: hidden;
+  display: flex;
+  background: var(--qm-border);
+}
+.barSell {
+  height: 100%;
+  background: var(--qm-sell-red);
+  transition: width 0.2s ease;
+}
+.barBuy {
+  height: 100%;
+  background: var(--qm-buy-blue);
+  transition: width 0.2s ease;
+}
+
+.tabs {
+  display: flex;
+  background: var(--qm-input-bg);
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 14px;
+}
+.tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px 0;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--qm-text-dim);
+  background: none;
+  border: none;
+  font-family: inherit;
+}
+.tab:focus-visible {
+  outline: 2px solid var(--qm-buy-blue);
+  outline-offset: 1px;
+}
+.tabActive {
+  background: var(--card-hover);
+  color: var(--qm-text-main);
+}
+
+.fieldGroup {
+  margin-bottom: 10px;
+}
+
+.fieldLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--qm-text-main);
+  margin-bottom: 6px;
+}
+
+.helpIcon {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1px solid var(--qm-text-dim);
+  color: var(--qm-text-dim);
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  cursor: default;
+}
+
+.fieldRow {
+  display: flex;
+  align-items: center;
+  background: var(--qm-input-bg);
+  border: 1px solid var(--qm-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.fieldRow:focus-within {
+  border-color: var(--qm-buy-blue);
+}
+
+.fieldInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--qm-text-main);
+  font-size: 14px;
+  padding: 10px 12px;
+  width: 0;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.fieldInput::placeholder {
+  color: var(--qm-text-dim);
+}
+
+.clearBtn {
+  background: none;
+  border: none;
+  color: var(--qm-text-dim);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 8px;
+  display: none;
+}
+.clearBtnShow {
+  display: block;
+}
+.clearBtn:hover,
+.clearBtn:focus-visible {
+  color: var(--qm-text-main);
+}
+
+.fieldUnit {
+  font-size: 12px;
+  color: var(--qm-text-dim);
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.fieldBtn {
+  width: 32px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--qm-text-dim);
+  font-size: 15px;
+  cursor: pointer;
+  border-left: 1px solid var(--qm-border);
+  background: none;
+  border-top: none;
+  border-bottom: none;
+  border-right: none;
+  font-family: inherit;
+}
+.fieldBtn:hover {
+  color: var(--qm-text-main);
+  background: var(--card-hover);
+}
+.fieldBtn:focus-visible {
+  color: var(--qm-text-main);
+  outline: 2px solid var(--qm-buy-blue);
+  outline-offset: -2px;
+}
+
+.deltaRow {
+  display: none;
+  font-size: 11px;
+  color: var(--qm-text-dim);
+  margin-top: 6px;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.deltaRowShow {
+  display: flex;
+}
+.neg {
+  color: var(--qm-sell-red);
+}
+.pos {
+  color: #22c55e;
+}
+.sep {
+  color: var(--qm-border);
+}
+
+.confirmBtn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: background 0.12s ease, filter 0.12s ease;
+  font-family: inherit;
+}
+.confirmBuy {
+  background: var(--qm-buy-blue);
+}
+.confirmSell {
+  background: var(--qm-sell-red);
+}
+.confirmBtn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.confirmBtn:active:not(:disabled) {
+  filter: brightness(0.95);
+}
+.confirmBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.confirmBtn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.cancelBtn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--qm-text-main);
+  background: var(--bg-elev-2);
+  cursor: pointer;
+  margin-top: 8px;
+  font-family: inherit;
+}
+.cancelBtn:hover {
+  background: var(--card-hover);
+}
+.cancelBtn:focus-visible {
+  outline: 2px solid var(--qm-buy-blue);
+  outline-offset: 2px;
+}
+
+.infoBlock {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--qm-border);
+  font-size: 11.5px;
+  color: var(--qm-text-dim);
+}
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+}
+.infoRow span:last-child {
+  color: var(--qm-text-main);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.moreToggle {
+  background: none;
+  border: none;
+  color: var(--qm-text-dim);
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 3px 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit;
+}
+.moreToggle:hover,
+.moreToggle:focus-visible {
+  color: var(--qm-text-main);
+}
+.arrow {
+  transition: transform 0.15s ease;
+  font-size: 9px;
+  display: inline-block;
+}
+.arrowOpen {
+  transform: rotate(180deg);
+}
+
+.moreExtra {
+  display: none;
+}
+.moreExtraShow {
+  display: block;
+}
+
+.flash {
+  font-size: 11px;
+  text-align: center;
+  margin-top: 8px;
+  min-height: 14px;
+  line-height: 1.35;
+}
+.flashOk {
+  color: var(--qm-buy-blue);
+}
+.flashErr {
+  color: var(--qm-sell-red);
+}
+
+@media (max-width: 360px) {
+  .priceValue {
+    font-size: 13px;
+  }
+}

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from backend.data.mt5_connector import MT5Connector
@@ -12,17 +12,17 @@ from datetime import datetime
 from backend.api.database import get_db, Trade
 
 router = APIRouter(prefix="/broker", tags=["broker"])
+logger = logging.getLogger(__name__)
 
 # Single connector instance for process lifetime (lazy connect)
 _connector = MT5Connector()
+
 
 def _ensure_connected() -> None:
     try:
         if not _connector.is_connected():
             _connector.connect()
     except Exception as e:
-        # Log the error but don't fail - let the endpoint handle it gracefully
-        logger = logging.getLogger(__name__)
         logger.warning(f"MT5 connection failed: {e}")
 
 
@@ -33,6 +33,132 @@ class MarketOrderRequest(BaseModel):
     sl: Optional[float] = Field(None, description="Stop Loss price")
     tp: Optional[float] = Field(None, description="Take Profit price")
     comment: Optional[str] = Field(None, description="Order comment")
+
+
+class PendingOrderRequest(BaseModel):
+    symbol: str = Field(..., description="Trading symbol")
+    side: str = Field(..., pattern="^(buy|sell)$")
+    volume: float = Field(..., gt=0)
+    price: float = Field(..., gt=0, description="Limit / pending price")
+    sl: Optional[float] = Field(None)
+    tp: Optional[float] = Field(None)
+    comment: Optional[str] = Field(None)
+
+
+def _validate_volume(symbol: str, volume: float) -> tuple[float, Optional[str]]:
+    info = _connector.get_symbol_info(symbol)
+    if not info:
+        return volume, f"Symbol not found: {symbol}"
+    vol_min = float(getattr(info, "volume_min", 0.01) or 0.01)
+    vol_step = float(getattr(info, "volume_step", 0.01) or 0.01)
+    vol_max = float(getattr(info, "volume_max", 100.0) or 100.0)
+    try:
+        steps = round(float(volume) / vol_step)
+        vol = steps * vol_step
+    except Exception:
+        vol = float(volume)
+    vol = max(vol_min, min(vol_max, vol))
+    if vol < vol_min:
+        return vol, f"Volume below minimum {vol_min}"
+    if vol > vol_max:
+        return vol, f"Volume above maximum {vol_max}"
+    return vol, None
+
+
+def _validate_stop_levels(
+    symbol: str,
+    entry: float,
+    sl: Optional[float],
+    tp: Optional[float],
+) -> Optional[str]:
+    info = _connector.get_symbol_info(symbol)
+    if not info:
+        return None
+    stops_level = int(getattr(info, "trade_stops_level", 0) or 0)
+    point = float(getattr(info, "point", 0.01) or 0.01)
+    min_dist = stops_level * point
+    if min_dist <= 0:
+        return None
+    if sl is not None and sl > 0 and abs(sl - entry) < min_dist:
+        return f"Stop Loss too close to entry (min distance {min_dist})"
+    if tp is not None and tp > 0 and abs(tp - entry) < min_dist:
+        return f"Take Profit too close to entry (min distance {min_dist})"
+    return None
+
+
+def _validate_pending_price(side: str, price: float, bid: float, ask: float) -> Optional[str]:
+    if price <= 0:
+        return "Invalid pending price"
+    if side.lower() == "buy" and price >= ask:
+        return "Buy limit must be below the current ask"
+    if side.lower() == "sell" and price <= bid:
+        return "Sell limit must be above the current bid"
+    return None
+
+
+def _check_margin(symbol: str, volume: float, price: float) -> Optional[str]:
+    free = _connector.get_free_margin()
+    required = _connector.estimate_margin(symbol, volume, price)
+    if required > free + 1e-9:
+        return f"Insufficient margin: need {required:.2f}, free {free:.2f}"
+    return None
+
+
+def _persist_trade(
+    db: Session,
+    *,
+    symbol: str,
+    side: str,
+    volume: float,
+    execution_price: float,
+    sl: Optional[float],
+    tp: Optional[float],
+    order_id: str,
+    comment: str,
+    status: str = "OPEN",
+    commission: float = 0.0,
+) -> dict:
+    trade = Trade(
+        account_id=1,
+        strategy_id=None,
+        symbol=symbol,
+        trade_type=side.upper(),
+        volume=volume,
+        open_price=execution_price,
+        close_price=None,
+        stop_loss=sl or None,
+        take_profit=tp or None,
+        commission=commission,
+        swap=0.0,
+        profit_loss=None,
+        status=status,
+        order_id=str(order_id),
+        execution_price=execution_price,
+        execution_time=datetime.utcnow(),
+        source="MANUAL",
+        base_currency="USD",
+        profit_currency="USD",
+        risk_reward_ratio=None,
+        pip_gain=None,
+        duration=None,
+        notes=comment,
+        open_time=datetime.utcnow(),
+        close_time=None,
+    )
+    db.add(trade)
+    db.commit()
+    return {
+        "success": True,
+        "trade_id": trade.trade_id,
+        "order_id": trade.order_id,
+        "symbol": trade.symbol,
+        "side": trade.trade_type,
+        "volume": trade.volume,
+        "price": trade.execution_price,
+        "status": trade.status,
+        "execution_time": trade.execution_time.isoformat() if trade.execution_time else None,
+        "message": "Trade executed successfully" if status == "OPEN" else "Pending order placed",
+    }
 
 
 @router.get("/status")
@@ -66,35 +192,45 @@ async def get_symbol_info(symbol: str) -> dict:
     info = _connector.get_symbol_info(symbol)
     if not info:
         return {"symbol": symbol, "found": False}
-    # Convert dataclass-like to dict when available
     try:
         data = info.__dict__
     except Exception:
         data = {}
-    # Provide common fields we need for client validation
-    # Fallbacks for real MT5 path where our connector may return minimal info
     return {
         "symbol": symbol,
         "found": True,
-        "digits": getattr(info, "digits", 5) if hasattr(info, "digits") else 5,
-        "volume_min": getattr(info, "volume_min", 0.01) if hasattr(info, "volume_min") else 0.01,
-        "volume_step": getattr(info, "volume_step", 0.01) if hasattr(info, "volume_step") else 0.01,
-        "volume_max": getattr(info, "volume_max", 100.0) if hasattr(info, "volume_max") else 100.0,
-        "trade_allowed": getattr(info, "trade_allowed", None) if hasattr(info, "trade_allowed") else None,
-        "trade_mode": getattr(info, "trade_mode", None) if hasattr(info, "trade_mode") else None,
-        **({k: v for k, v in data.items() if k not in {"digits","volume_min","volume_step","volume_max"}}),
+        "digits": getattr(info, "digits", 5),
+        "volume_min": getattr(info, "volume_min", 0.01),
+        "volume_step": getattr(info, "volume_step", 0.01),
+        "volume_max": getattr(info, "volume_max", 100.0),
+        "trade_allowed": getattr(info, "trade_allowed", None),
+        "trade_mode": getattr(info, "trade_mode", None),
+        "point": getattr(info, "point", None),
+        "contract_size": getattr(info, "contract_size", None),
+        "trade_stops_level": getattr(info, "trade_stops_level", None),
+        "swap_long": getattr(info, "swap_long", None),
+        "swap_short": getattr(info, "swap_short", None),
+        "trade_tick_size": getattr(info, "trade_tick_size", None),
+        "spread": getattr(info, "spread", None),
+        **({k: v for k, v in data.items() if k not in {
+            "digits", "volume_min", "volume_step", "volume_max",
+            "point", "contract_size", "trade_stops_level",
+            "swap_long", "swap_short", "trade_tick_size", "spread",
+        }}),
     }
 
 
 @router.get("/account")
 async def get_account() -> dict:
     _ensure_connected()
+    acc = _connector.get_account_info()
     return {
         "balance": _connector.get_balance(),
         "equity": _connector.get_equity(),
         "free_margin": _connector.get_free_margin(),
+        "leverage": getattr(acc, "leverage", 100) if acc else 100,
         "connected": _connector.is_connected(),
-        "mode": "mock" if _connector.use_mock else "live"
+        "mode": "mock" if _connector.use_mock else "live",
     }
 
 
@@ -110,12 +246,31 @@ async def get_trades(limit: int = 20) -> dict:
     return {"trades": _connector.get_recent_trades(limit)}
 
 
+@router.get("/order/preview")
+async def order_preview(
+    symbol: str = Query(...),
+    side: str = Query(..., pattern="^(buy|sell)$"),
+    volume: float = Query(..., gt=0),
+    price: Optional[float] = Query(None),
+) -> dict:
+    """Compute fees, margin, and instrument costs for the order ticket."""
+    _ensure_connected()
+    vol, vol_err = _validate_volume(symbol, volume)
+    if vol_err and "not found" in vol_err.lower():
+        return {"error": vol_err, "success": False}
+
+    bid, ask = _connector.get_bid_ask(symbol)
+    px = price if price and price > 0 else (ask if side == "buy" else bid)
+    costs = _connector.estimate_order_costs(symbol, vol, px)
+    return {"success": True, "side": side, **costs}
+
+
 @router.get("/trades/database")
 async def get_database_trades(limit: int = 20, db: Session = Depends(get_db)) -> dict:
     """Get trades from database with enhanced information."""
     try:
         trades = db.query(Trade).order_by(Trade.open_time.desc()).limit(limit).all()
-        
+
         trade_list = []
         for trade in trades:
             trade_dict = {
@@ -139,13 +294,12 @@ async def get_database_trades(limit: int = 20, db: Session = Depends(get_db)) ->
                 "close_time": trade.close_time.isoformat() if trade.close_time else None,
                 "notes": trade.notes,
                 "pip_gain": float(trade.pip_gain) if trade.pip_gain else None,
-                "risk_reward_ratio": float(trade.risk_reward_ratio) if trade.risk_reward_ratio else None
+                "risk_reward_ratio": float(trade.risk_reward_ratio) if trade.risk_reward_ratio else None,
             }
             trade_list.append(trade_dict)
-        
+
         return {"trades": trade_list, "total": len(trade_list)}
     except Exception as e:
-        logger = logging.getLogger(__name__)
         logger.error("Error fetching database trades: %s", str(e))
         return {"trades": [], "total": 0, "error": str(e)}
 
@@ -153,86 +307,134 @@ async def get_database_trades(limit: int = 20, db: Session = Depends(get_db)) ->
 @router.post("/order/market")
 async def market_order(req: MarketOrderRequest, db: Session = Depends(get_db)) -> dict:
     _ensure_connected()
-    
-    # Get current market price for execution
+
+    if not _connector.is_connected():
+        return {"success": False, "error": "Broker disconnected"}
+
+    vol, vol_err = _validate_volume(req.symbol, req.volume)
+    if vol_err:
+        return {"success": False, "error": vol_err}
+
     bid, ask = _connector.get_bid_ask(req.symbol)
-    
-    # Use appropriate price based on trade direction
-    execution_price = ask if req.side.lower() == 'buy' else bid
-    
+    if bid <= 0 or ask <= 0:
+        return {"success": False, "error": "Market closed or quote unavailable"}
+
+    execution_price = ask if req.side.lower() == "buy" else bid
+
+    stop_err = _validate_stop_levels(req.symbol, execution_price, req.sl, req.tp)
+    if stop_err:
+        return {"success": False, "error": stop_err}
+
+    margin_err = _check_margin(req.symbol, vol, execution_price)
+    if margin_err:
+        return {"success": False, "error": margin_err}
+
+    costs = _connector.estimate_order_costs(req.symbol, vol, execution_price)
+
     res = _connector.place_order(
         symbol=req.symbol,
         side=req.side,
-        quantity=req.volume,
+        quantity=vol,
         price=execution_price,
         sl=req.sl or 0.0,
         tp=req.tp or 0.0,
-        comment="ui_market_order",
+        comment=req.comment or "ui_market_order",
+        order_type="market",
     )
-    
-    # Persist to database if successful
+
     if isinstance(res, dict) and not res.get("error"):
         try:
-            # Calculate commission (simplified - you can enhance this)
-            commission = 0.0  # Default commission
-            
-            # Create comprehensive trade record
-            trade = Trade(
-                account_id=1,  # Default account
-                strategy_id=None,  # Manual trade
+            return _persist_trade(
+                db,
                 symbol=req.symbol,
-                trade_type=req.side.upper(),  # BUY/SELL
-                volume=req.volume,
-                open_price=execution_price,
-                close_price=None,  # Will be set when position is closed
-                stop_loss=req.sl or None,
-                take_profit=req.tp or None,
-                commission=commission,
-                swap=0.0,  # Default swap
-                profit_loss=None,  # Will be calculated when position is closed
-                status='OPEN',
+                side=req.side,
+                volume=vol,
+                execution_price=float(res.get("price", execution_price)),
+                sl=req.sl,
+                tp=req.tp,
                 order_id=str(res.get("id", "")),
-                execution_price=execution_price,
-                execution_time=datetime.utcnow(),
-                source='MANUAL',
-                base_currency='USD',
-                profit_currency='USD',
-                risk_reward_ratio=None,  # Can be calculated if SL/TP are set
-                pip_gain=None,  # Will be calculated when position is closed
-                duration=None,  # Will be calculated when position is closed
-                notes=f"Manual market order: {req.comment or 'ui_market_order'}",
-                open_time=datetime.utcnow(),
-                close_time=None
+                comment=f"Manual market order: {req.comment or 'ui_market_order'}",
+                status="OPEN",
+                commission=float(costs.get("fees", 0.0)),
             )
-            
-            db.add(trade)
-            db.commit()
-            
-            # Return success response with trade details
-            return {
-                "success": True,
-                "trade_id": trade.trade_id,
-                "order_id": trade.order_id,
-                "symbol": trade.symbol,
-                "side": trade.trade_type,
-                "volume": trade.volume,
-                "price": trade.execution_price,
-                "status": trade.status,
-                "execution_time": trade.execution_time.isoformat() if trade.execution_time else None,
-                "message": "Trade executed successfully"
-            }
-            
         except Exception as e:
             db.rollback()
-            logger = logging.getLogger(__name__)
             logger.error("Error persisting broker trade: %s", str(e))
             return {
                 "error": f"Trade executed but failed to save to database: {str(e)}",
-                "success": False
+                "success": False,
             }
-    
-    # Return error response
+
     return {
-        "error": res.get("error", "Unknown error occurred"),
-        "success": False
+        "error": res.get("error", "Unknown error occurred") if isinstance(res, dict) else "Unknown error",
+        "success": False,
+    }
+
+
+@router.post("/order/pending")
+async def pending_order(req: PendingOrderRequest, db: Session = Depends(get_db)) -> dict:
+    _ensure_connected()
+
+    if not _connector.is_connected():
+        return {"success": False, "error": "Broker disconnected"}
+
+    vol, vol_err = _validate_volume(req.symbol, req.volume)
+    if vol_err:
+        return {"success": False, "error": vol_err}
+
+    bid, ask = _connector.get_bid_ask(req.symbol)
+    if bid <= 0 or ask <= 0:
+        return {"success": False, "error": "Market closed or quote unavailable"}
+
+    pending_err = _validate_pending_price(req.side, req.price, bid, ask)
+    if pending_err:
+        return {"success": False, "error": pending_err}
+
+    stop_err = _validate_stop_levels(req.symbol, req.price, req.sl, req.tp)
+    if stop_err:
+        return {"success": False, "error": stop_err}
+
+    margin_err = _check_margin(req.symbol, vol, req.price)
+    if margin_err:
+        return {"success": False, "error": margin_err}
+
+    costs = _connector.estimate_order_costs(req.symbol, vol, req.price)
+
+    res = _connector.place_order(
+        symbol=req.symbol,
+        side=req.side,
+        quantity=vol,
+        price=req.price,
+        sl=req.sl or 0.0,
+        tp=req.tp or 0.0,
+        comment=req.comment or "ui_pending_order",
+        order_type="pending",
+    )
+
+    if isinstance(res, dict) and not res.get("error"):
+        try:
+            return _persist_trade(
+                db,
+                symbol=req.symbol,
+                side=req.side,
+                volume=vol,
+                execution_price=req.price,
+                sl=req.sl,
+                tp=req.tp,
+                order_id=str(res.get("id", "")),
+                comment=f"Pending order: {req.comment or 'ui_pending_order'}",
+                status="PENDING",
+                commission=float(costs.get("fees", 0.0)),
+            )
+        except Exception as e:
+            db.rollback()
+            logger.error("Error persisting pending order: %s", str(e))
+            return {
+                "error": f"Order accepted but failed to save: {str(e)}",
+                "success": False,
+            }
+
+    return {
+        "error": res.get("error", "Unknown error occurred") if isinstance(res, dict) else "Unknown error",
+        "success": False,
     }

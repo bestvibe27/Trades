@@ -200,7 +200,7 @@ class MT5Connector:
             "US30m": 37500.0, "US500m": 4750.0, "USTECm": 16500.0, "GER40m": 18500.0,
             "UK100m": 7500.0, "FRA40m": 7200.0, "JPN225m": 38500.0, "HK50m": 18500.0, "AUS200m": 7200.0,
             # Crypto
-            "BTCUSDm": 43500.00, "ETHUSDm": 2650.00, "LTCUSDm": 72.50, "XRPUSDm": 0.6250,
+            "BTCUSDm": 62785.00, "ETHUSDm": 2650.00, "LTCUSDm": 72.50, "XRPUSDm": 0.6250,
             "BCHUSDm": 245.00, "ADAUSDm": 0.4850, "DOGEUSDm": 0.0850, "SOLUSDm": 98.50,
             # Stocks
             "AAPLm": 195.50, "TSLAm": 245.00, "MSFTm": 375.00, "AMZNm": 155.00,
@@ -320,7 +320,7 @@ class MT5Connector:
             server=self.server or "Demo-Server",
             name="Demo Account",
             currency="USD",
-            leverage=100,
+            leverage=400,
             limit_orders=100,
             margin_so_mode=0,
             trade_allowed=True,
@@ -518,23 +518,24 @@ class MT5Connector:
             digits = 2 if symbol in ["BTCUSDm", "ETHUSDm", "LTCUSDm", "BCHUSDm", "SOLUSDm"] else 4
             point = 0.01 if symbol in ["BTCUSDm", "ETHUSDm", "LTCUSDm", "BCHUSDm", "SOLUSDm"] else 0.0001
             tick_size = 0.01 if symbol in ["BTCUSDm", "ETHUSDm", "LTCUSDm", "BCHUSDm", "SOLUSDm"] else 0.0001
+            is_btc = symbol == "BTCUSDm"
             return MT5SymbolInfo(
                 symbol=symbol,
                 name=symbol,
-                currency_base="USD",
+                currency_base="BTC" if is_btc else "USD",
                 currency_profit="USD",
                 currency_margin="USD",
                 contract_size=1.0,
                 digits=digits,
                 point=point,
-                spread=100,
+                spread=1000 if is_btc else 100,  # BTC ~10.00 USD spread at point 0.01
                 trade_mode=4,
-                trade_stops_level=0,
+                trade_stops_level=50 if is_btc else 10,
                 trade_freeze_level=0,
                 trade_exemode=1,
-                swap_mode=0,
-                swap_long=0.0,
-                swap_short=0.0,
+                swap_mode=1,
+                swap_long=-2.10 if is_btc else -0.50,
+                swap_short=0.40 if is_btc else 0.20,
                 starting=datetime(1970, 1, 1, tzinfo=timezone.utc),
                 expiration=datetime(2030, 12, 31, tzinfo=timezone.utc),
                 trade_tick_value=1.0,
@@ -548,9 +549,9 @@ class MT5Connector:
                 session_deals=0,
                 session_buy_orders=0,
                 session_sell_orders=0,
-                volume_min=0.01,
-                volume_max=100.0,
-                volume_step=0.01,
+                volume_min=0.001 if is_btc else 0.01,
+                volume_max=10.0 if is_btc else 100.0,
+                volume_step=0.001 if is_btc else 0.01,
                 volume_limit=0,
                 margin_hedged=0.0,
                 price_limit_min=0.0,
@@ -965,10 +966,12 @@ class MT5Connector:
         
         # Mock margin calculation
         total_margin = 0.0
+        leverage = getattr(self.account_info, "leverage", 100) if self.account_info else 100
+        leverage = max(int(leverage or 100), 1)
         for pos in self._mock_positions:
             symbol_info = self.get_symbol_info(pos.symbol)
             if symbol_info:
-                margin = (pos.volume * symbol_info.contract_size * pos.price_open) / self.account_info.leverage
+                margin = (pos.volume * symbol_info.contract_size * pos.price_open) / leverage
                 total_margin += margin
         
         return total_margin
@@ -990,6 +993,43 @@ class MT5Connector:
             return float(getattr(info, "margin_free", 0.0))
         except Exception:
             return 0.0
+
+    def estimate_margin(self, symbol: str, volume: float, price: float) -> float:
+        """Required margin for a prospective order: (volume * contract_size * price) / leverage."""
+        symbol_info = self.get_symbol_info(symbol)
+        leverage = getattr(self.account_info, "leverage", 100) if self.account_info else 100
+        leverage = max(int(leverage or 100), 1)
+        contract = float(getattr(symbol_info, "contract_size", 1.0) or 1.0) if symbol_info else 1.0
+        if price <= 0 or volume <= 0:
+            return 0.0
+        return (float(volume) * contract * float(price)) / leverage
+
+    def estimate_order_costs(self, symbol: str, volume: float, price: float) -> Dict[str, Any]:
+        """Fees, margin, leverage, swaps and contract size for the order ticket."""
+        symbol_info = self.get_symbol_info(symbol)
+        leverage = getattr(self.account_info, "leverage", 100) if self.account_info else 100
+        leverage = int(leverage or 100)
+        contract = float(getattr(symbol_info, "contract_size", 1.0) or 1.0) if symbol_info else 1.0
+        swap_long = float(getattr(symbol_info, "swap_long", 0.0) or 0.0) if symbol_info else 0.0
+        swap_short = float(getattr(symbol_info, "swap_short", 0.0) or 0.0) if symbol_info else 0.0
+        point = float(getattr(symbol_info, "point", 0.01) or 0.01) if symbol_info else 0.01
+        spread_points = float(getattr(symbol_info, "spread", 0) or 0) if symbol_info else 0.0
+        # Approximate commission as spread cost in quote currency (matches ticket ≈0.10 USD / 0.01 lot on BTC)
+        spread_price = spread_points * point
+        fees = abs(spread_price) * float(volume) * contract
+        if fees < 1e-9 and volume > 0:
+            fees = float(volume) * 10.0  # $10 per lot fallback
+        margin = self.estimate_margin(symbol, volume, price)
+        return {
+            "fees": round(fees, 2),
+            "margin": round(margin, 2),
+            "leverage": leverage,
+            "contract_size": contract,
+            "swap_long": round(swap_long * volume, 2),
+            "swap_short": round(swap_short * volume, 2),
+            "currency": "USD",
+            "free_margin": round(self.get_free_margin(), 2),
+        }
 
     def is_connected(self) -> bool:
         """Check if connected to MT5."""
