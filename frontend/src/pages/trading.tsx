@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Layout from "../components/common/Layout";
 import tradingAPI from "../services/tradingAPI";
 import { usePolling } from "../hooks/usePolling";
+import { useChartData } from "../hooks/useChartData";
 import { TRADING_SYMBOLS } from "../utils/constants";
 import styles from "../styles/Trading.module.css";
 import QuickMarketWidget from "../components/trading/QuickMarketWidget";
+import InteractiveTradingChart from "../components/charts/InteractiveTradingChart";
+import type { ChartPositionOverlay } from "../components/charts/InteractiveTradingChart";
 
 interface Position {
   symbol: string;
@@ -42,6 +45,7 @@ const TradingPage: React.FC = () => {
   const [mt5Account, setMt5Account] = useState<any>(null);
   const [mt5Error, setMt5Error] = useState<string>("");
   const [qSymbol, setQSymbol] = useState<string>("BTCUSDm");
+  const [chartTf, setChartTf] = useState<string>("1m");
   const [qQuote, setQQuote] = useState<{
     last: number;
     bid: number;
@@ -55,6 +59,36 @@ const TradingPage: React.FC = () => {
   } | null>(null);
   const [symbols, setSymbols] = useState<string[]>([]);
   const [symInfo, setSymInfo] = useState<any>(null);
+
+  const {
+    candles: chartCandles,
+    quote: chartQuote,
+    loading: chartLoading,
+    error: chartError,
+    loadMoreHistory,
+  } = useChartData(qSymbol, chartTf, { limit: 250, pollMs: 15000 });
+
+  const chartPositions: ChartPositionOverlay[] = useMemo(
+    () =>
+      positions
+        .filter((p) => p.symbol === qSymbol && (p.side === "buy" || p.side === "sell"))
+        .map((p) => ({
+          side: p.side as "buy" | "sell",
+          price_open: p.price_open,
+          tp: p.tp || undefined,
+          sl: p.sl || undefined,
+          price_current: p.price_current,
+        })),
+    [positions, qSymbol]
+  );
+
+  // Prefer live SSE/chart stream; fall back to page poll for Quick Market
+  const liveQuote = chartQuote ?? qQuote;
+
+  // Keep Quick Market ticket in sync with chart stream
+  useEffect(() => {
+    if (chartQuote) setQQuote(chartQuote);
+  }, [chartQuote]);
 
   useEffect(() => {
     fetchData();
@@ -267,7 +301,7 @@ const TradingPage: React.FC = () => {
           </div>
         </div>
 
-        <div className={styles.topGrid}>
+        <div className={styles.workspaceGrid}>
           <div className={styles.panel}>
             <h2 className={styles.panelTitle}>Broker Connection</h2>
             <div className={styles.statusRow}>
@@ -310,11 +344,27 @@ const TradingPage: React.FC = () => {
               symbol={qSymbol}
               symbols={symbols}
               symbolsByGroup={TRADING_SYMBOLS}
-              quote={qQuote}
+              quote={liveQuote}
               symInfo={symInfo}
               connected={mt5Connected}
               onSymbolChange={handleSymbolChange}
               onOrderSuccess={handleOrderSuccess}
+            />
+          </div>
+
+          <div className={styles.chartSlot}>
+            <InteractiveTradingChart
+              symbol={qSymbol}
+              symbolLabel={qSymbol}
+              candles={chartCandles}
+              quote={liveQuote}
+              timeframe={chartTf}
+              onTimeframeChange={(_minutes, label) => setChartTf(label)}
+              positions={chartPositions}
+              loading={chartLoading}
+              error={chartError}
+              onLoadMoreHistory={loadMoreHistory}
+              height={420}
             />
           </div>
         </div>

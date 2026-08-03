@@ -1139,3 +1139,175 @@ class MT5Connector:
             return []
 
 
+
+
+    # ------------------------------------------------------------------
+    # Historical / live candle (OHLCV) data
+    # ------------------------------------------------------------------
+
+    _TF_MAP = {
+        "1m": "M1", "1": "M1", "m1": "M1",
+        "3m": "M3", "3": "M3", "m3": "M3",
+        "5m": "M5", "5": "M5", "m5": "M5",
+        "15m": "M15", "15": "M15", "m15": "M15",
+        "30m": "M30", "30": "M30", "m30": "M30",
+        "1h": "H1", "60": "H1", "1H": "H1", "h1": "H1",
+        "2h": "H2", "120": "H2", "2H": "H2", "h2": "H2",
+        "4h": "H4", "240": "H4", "4H": "H4", "h4": "H4",
+        "6h": "H6", "360": "H6", "6H": "H6", "h6": "H6",
+        "12h": "H12", "720": "H12", "12H": "H12", "h12": "H12",
+        "1d": "D1", "1440": "D1", "1D": "D1", "d1": "D1",
+        "1w": "W1", "10080": "W1", "1W": "W1", "w1": "W1",
+        "1M": "MN1", "43200": "MN1", "mn1": "MN1", "1mo": "MN1",
+    }
+
+    _TF_SECONDS = {
+        "M1": 60, "M3": 180, "M5": 300, "M15": 900, "M30": 1800,
+        "H1": 3600, "H2": 7200, "H4": 14400, "H6": 21600, "H12": 43200,
+        "D1": 86400, "W1": 604800, "MN1": 2592000,
+    }
+
+    def _normalize_timeframe(self, timeframe: str) -> str:
+        key = timeframe.strip()
+        mapped = self._TF_MAP.get(key) or self._TF_MAP.get(key.lower())
+        if mapped:
+            return mapped
+        upper = key.upper()
+        if upper in self._TF_SECONDS:
+            return upper
+        return "M1"
+
+    def get_candles(
+        self,
+        symbol: str,
+        timeframe: str = "1m",
+        limit: int = 200,
+        before: Optional[datetime] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return OHLCV candles for *symbol* at *timeframe*.
+
+        Args:
+            symbol: Broker symbol (e.g. BTCUSDm).
+            timeframe: Human or MT5 timeframe string (1m, 5m, H1, …).
+            limit: Max number of bars (clamped 1..5000).
+            before: Optional end timestamp; returns bars ending at/before this time.
+
+        Returns:
+            List of dicts: {open, high, low, close, volume, timestamp} (ISO UTC).
+        """
+        if not self.connected:
+            logger.error("Not connected to MT5")
+            return []
+
+        limit = max(1, min(int(limit or 200), 5000))
+        tf = self._normalize_timeframe(timeframe)
+
+        if self.use_mock:
+            return self._get_mock_candles(symbol, tf, limit, before)
+
+        try:
+            if not self._real_initialized:
+                self.connect()
+            mt5.symbol_select(symbol, True)  # type: ignore
+
+            tf_const = getattr(mt5, f"TIMEFRAME_{tf}", None)  # type: ignore
+            if tf_const is None:
+                logger.warning(f"Unknown MT5 timeframe {tf}, falling back to M1")
+                tf_const = mt5.TIMEFRAME_M1  # type: ignore
+                tf = "M1"
+
+            end = before or datetime.now(timezone.utc)
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=timezone.utc)
+
+            rates = mt5.copy_rates_from(symbol, tf_const, end, limit)  # type: ignore
+            if rates is None or len(rates) == 0:
+                code, msg = mt5.last_error()  # type: ignore
+                logger.error(f"copy_rates_from failed for {symbol}/{tf}: {code} {msg}")
+                return self._get_mock_candles(symbol, tf, limit, before)
+
+            candles: List[Dict[str, Any]] = []
+            for r in rates:
+                ts = datetime.fromtimestamp(int(r["time"]), tz=timezone.utc)
+                candles.append(
+                    {
+                        "open": float(r["open"]),
+                        "high": float(r["high"]),
+                        "low": float(r["low"]),
+                        "close": float(r["close"]),
+                        "volume": float(r["tick_volume"]),
+                        "timestamp": ts.isoformat(),
+                    }
+                )
+            return candles
+        except Exception as e:
+            logger.error(f"get_candles error: {e}")
+            return self._get_mock_candles(symbol, tf, limit, before)
+
+    def _get_mock_candles(
+        self,
+        symbol: str,
+        tf: str,
+        limit: int,
+        before: Optional[datetime] = None,
+    ) -> List[Dict[str, Any]]:
+        """Synthesize deterministic-ish OHLCV bars anchored to the mock price."""
+        import math
+        import hashlib
+
+        step = self._TF_SECONDS.get(tf, 60)
+        end = before or datetime.now(timezone.utc)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        # Align end to bar boundary
+        end_epoch = int(end.timestamp())
+        end_epoch = end_epoch - (end_epoch % step)
+
+        base = float(self._mock_prices.get(symbol, 100.0))
+        # Seed from symbol so different symbols look distinct but stable across calls
+        seed = int(hashlib.md5(symbol.encode()).hexdigest()[:8], 16)
+
+        candles: List[Dict[str, Any]] = []
+        price = base
+        # Walk backwards then reverse so latest close ≈ base
+        raw: List[Dict[str, Any]] = []
+        for i in range(limit):
+            # Pseudo-random walk using sin hash mix (no global RNG drift)
+            t = end_epoch - i * step
+            n = ((seed + i * 1103515245) & 0x7FFFFFFF) / 0x7FFFFFFF
+            drift = math.sin((seed % 97) + i / 7.0) * 0.0015 * base
+            change = (n - 0.5) * 0.004 * base + drift
+            close = max(base * 0.01, price)
+            open_ = max(base * 0.01, close - change)
+            wick = abs(change) * (0.35 + n * 0.4) + base * 0.0002
+            high = max(open_, close) + wick
+            low = min(open_, close) - wick
+            vol = 50 + (n * 200)
+            raw.append(
+                {
+                    "open": round(open_, 8),
+                    "high": round(high, 8),
+                    "low": round(low, 8),
+                    "close": round(close, 8),
+                    "volume": round(vol, 2),
+                    "timestamp": datetime.fromtimestamp(t, tz=timezone.utc).isoformat(),
+                }
+            )
+            price = open_
+
+        # Reverse so chronological ascending; rebase so last close ≈ live mock price
+        raw.reverse()
+        if raw:
+            live = float(self._mock_prices.get(symbol, base))
+            offset = live - raw[-1]["close"]
+            for c in raw:
+                c["open"] = round(c["open"] + offset, 8)
+                c["high"] = round(c["high"] + offset, 8)
+                c["low"] = round(c["low"] + offset, 8)
+                c["close"] = round(c["close"] + offset, 8)
+            # Keep last candle tracking live price
+            last = raw[-1]
+            last["close"] = round(live, 8)
+            last["high"] = max(last["high"], live)
+            last["low"] = min(last["low"], live)
+        return raw

@@ -1,4 +1,4 @@
-import { get, post } from './api';
+import { get, post, API_BASE } from './api';
 
 // Trading API service
 export interface Order {
@@ -124,6 +124,42 @@ class TradingAPI {
 
   async getBrokerQuote(symbol: string): Promise<{ symbol: string; last: number; bid: number; ask: number }>{
     return get(`${this.brokerUrl}/quote/${encodeURIComponent(symbol)}`);
+  }
+
+  /**
+   * Historical OHLCV candles from the connected broker (MT5 / mock).
+   * Pass `before` (ISO timestamp) to paginate older history.
+   */
+  async getBrokerCandles(
+    symbol: string,
+    timeframe: string,
+    limit = 200,
+    before?: string
+  ): Promise<{
+    symbol: string;
+    timeframe: string;
+    source?: string;
+    candles: Array<{
+      symbol: string;
+      timeframe: string;
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+      volume: number;
+      timestamp: string;
+    }>;
+  }> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (before) params.append('before', before);
+    return get(
+      `${this.brokerUrl}/candles/${encodeURIComponent(symbol)}/${encodeURIComponent(timeframe)}?${params}`
+    );
+  }
+
+  /** SSE URL for live quote streaming (use with EventSource). */
+  getBrokerStreamUrl(symbol: string, intervalMs = 1000): string {
+    return `${API_BASE}${this.brokerUrl}/stream/${encodeURIComponent(symbol)}?interval_ms=${intervalMs}`;
   }
 
   async placeBrokerMarketOrder(params: { symbol: string; side: 'buy'|'sell'; volume: number; sl?: number; tp?: number; comment?: string }): Promise<any> {

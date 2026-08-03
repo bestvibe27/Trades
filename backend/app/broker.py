@@ -1,15 +1,23 @@
 """Broker (Exness MT5) API router."""
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
+import time
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.data.mt5_connector import MT5Connector
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 from backend.api.database import get_db, Trade
+
+# Simple in-process candle cache: (symbol, tf, before_key, limit) -> (expires_at, payload)
+_candle_cache: dict[tuple, tuple[float, dict]] = {}
+_CANDLE_CACHE_TTL = 5.0  # seconds
 
 router = APIRouter(prefix="/broker", tags=["broker"])
 logger = logging.getLogger(__name__)
@@ -177,6 +185,115 @@ async def get_quote(symbol: str) -> dict:
     price = _connector.get_last_price(symbol)
     bid, ask = _connector.get_bid_ask(symbol)
     return {"symbol": symbol, "last": price, "bid": bid, "ask": ask}
+
+
+@router.get("/candles/{symbol}/{timeframe}")
+async def get_candles(
+    symbol: str,
+    timeframe: str,
+    limit: int = Query(200, ge=1, le=5000),
+    before: Optional[str] = Query(
+        None,
+        description="ISO timestamp; return bars ending at/before this time (pagination)",
+    ),
+) -> dict:
+    """Fetch historical OHLCV candles from the connected broker (MT5).
+
+    Supports pagination via `before` for seamless chart history loading.
+    Results are briefly cached to reduce broker load under polling clients.
+    """
+    _ensure_connected()
+    before_dt: Optional[datetime] = None
+    if before:
+        try:
+            before_dt = datetime.fromisoformat(before.replace("Z", "+00:00"))
+            if before_dt.tzinfo is None:
+                before_dt = before_dt.replace(tzinfo=timezone.utc)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid before timestamp: {e}") from e
+
+    cache_key = (symbol, timeframe, before or "", limit)
+    now = time.monotonic()
+    cached = _candle_cache.get(cache_key)
+    if cached and cached[0] > now:
+        return cached[1]
+
+    bars = _connector.get_candles(symbol, timeframe, limit=limit, before=before_dt)
+    payload = {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "source": "mock" if _connector.use_mock else "mt5",
+        "candles": [
+            {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "open": c["open"],
+                "high": c["high"],
+                "low": c["low"],
+                "close": c["close"],
+                "volume": c["volume"],
+                "timestamp": c["timestamp"],
+            }
+            for c in bars
+        ],
+    }
+    _candle_cache[cache_key] = (now + _CANDLE_CACHE_TTL, payload)
+    # Bound cache size
+    if len(_candle_cache) > 256:
+        expired = [k for k, (exp, _) in _candle_cache.items() if exp <= now]
+        for k in expired:
+            _candle_cache.pop(k, None)
+    return payload
+
+
+@router.get("/stream/{symbol}")
+async def stream_quotes(
+    symbol: str,
+    interval_ms: int = Query(1000, ge=200, le=10000),
+):
+    """Server-Sent Events stream of live bid/ask/last for *symbol*.
+
+    Clients should reconnect on disconnect; the stream emits a heartbeat
+    comment every ~15s so proxies keep the connection alive.
+    """
+    _ensure_connected()
+
+    async def event_generator():
+        last_heartbeat = time.monotonic()
+        try:
+            while True:
+                try:
+                    price = _connector.get_last_price(symbol)
+                    bid, ask = _connector.get_bid_ask(symbol)
+                    payload = {
+                        "symbol": symbol,
+                        "last": price,
+                        "bid": bid,
+                        "ask": ask,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                    yield f"data: {json.dumps(payload)}\n\n"
+                except Exception as e:
+                    yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+                now = time.monotonic()
+                if now - last_heartbeat > 15:
+                    yield ": heartbeat\n\n"
+                    last_heartbeat = now
+
+                await asyncio.sleep(interval_ms / 1000.0)
+        except asyncio.CancelledError:
+            return
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/symbols")

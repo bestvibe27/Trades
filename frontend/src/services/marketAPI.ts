@@ -136,17 +136,19 @@ class MarketAPI {
     timeframe: string,
     startDate?: string,
     endDate?: string,
-    limit?: number
-  ): Promise<{ candles: Candle[] }> {
+    limit?: number,
+    before?: string
+  ): Promise<{ candles: Candle[]; source?: string; symbol?: string; timeframe?: string }> {
     const params = new URLSearchParams();
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
     if (limit) params.append('limit', limit.toString());
+    if (before) params.append('before', before);
     
     const queryString = params.toString();
-    const url = `${this.baseUrl}/candles/${symbol}/${timeframe}${queryString ? `?${queryString}` : ''}`;
+    const url = `${this.baseUrl}/candles/${encodeURIComponent(symbol)}/${encodeURIComponent(timeframe)}${queryString ? `?${queryString}` : ''}`;
     
-    return get<{ candles: Candle[] }>(url);
+    return get<{ candles: Candle[]; source?: string; symbol?: string; timeframe?: string }>(url);
   }
 
   /**
