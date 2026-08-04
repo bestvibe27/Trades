@@ -346,6 +346,7 @@ const TradingPage: React.FC = () => {
               symbolsByGroup={TRADING_SYMBOLS}
               quote={liveQuote}
               symInfo={symInfo}
+              account={account}
               connected={mt5Connected}
               onSymbolChange={handleSymbolChange}
               onOrderSuccess={handleOrderSuccess}

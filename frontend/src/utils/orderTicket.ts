@@ -4,6 +4,8 @@
 
 export type OrderSide = "buy" | "sell";
 export type OrderType = "market" | "pending";
+export type StopTargetKind = "tp" | "sl";
+export type StopUnitMode = "price" | "pips" | "money" | "percent";
 
 export interface PriceDelta {
   diff: number;
@@ -24,16 +26,116 @@ export interface SymbolLotConstraints {
   contract_size?: number;
 }
 
-/** Pip size for delta display — BTC-style uses 0.1; forex uses point×10 or 0.0001. */
-export function getPipSize(symbol: string, point?: number): number {
-  const upper = symbol.toUpperCase();
-  if (upper.includes("BTC") || upper.includes("ETH") || upper.includes("XAU")) {
-    return point && point > 0 ? Math.max(point * 10, 0.1) : 0.1;
+export interface StopConversionContext {
+  entryPrice: number;
+  volume: number;
+  equity: number;
+  pipSize: number;
+  contractSize: number;
+  side: OrderSide;
+  kind: StopTargetKind;
+}
+
+export const STOP_MODE_LABELS: Record<StopUnitMode, string> = {
+  price: "Price",
+  pips: "Pips",
+  money: "Money",
+  percent: "% Equity",
+};
+
+export const STOP_MODE_OPTIONS: Array<{ value: StopUnitMode; label: string }> = [
+  { value: "price", label: "By asset price" },
+  { value: "pips", label: "In pips" },
+  { value: "money", label: "In money" },
+  { value: "percent", label: "In % of equity" },
+];
+
+export const STOP_MODE_STEPS: Record<StopUnitMode, number> = {
+  price: 1,
+  pips: 1,
+  money: 1,
+  percent: 0.1,
+};
+
+export const STOP_MODE_DECIMALS: Record<StopUnitMode, number> = {
+  price: 2,
+  pips: 1,
+  money: 2,
+  percent: 2,
+};
+
+/** Pip size for delta display / stop conversions, sourced from instrument config. */
+export function getPipSize(point?: number, pipSize?: number): number {
+  if (pipSize && pipSize > 0) return pipSize;
+  if (point && point > 0) return point * 10;
+  return 0.0001;
+}
+
+function stopDirection(side: OrderSide, kind: StopTargetKind): number {
+  if (kind === "tp") {
+    return side === "buy" ? 1 : -1;
   }
-  if (upper.includes("JPY")) {
-    return point && point > 0 ? point * 10 : 0.01;
+  return side === "buy" ? -1 : 1;
+}
+
+function moneyToPriceDistance(amount: number, volume: number, contractSize: number): number {
+  const size = Math.abs(volume) * Math.abs(contractSize);
+  if (!Number.isFinite(amount) || size <= 0) return 0;
+  return amount / size;
+}
+
+export function resolveStopPrice(
+  mode: StopUnitMode,
+  rawValue: number,
+  context: StopConversionContext,
+): number {
+  const direction = stopDirection(context.side, context.kind);
+  switch (mode) {
+    case "price":
+      return rawValue;
+    case "pips":
+      return context.entryPrice + direction * rawValue * context.pipSize;
+    case "money":
+      return context.entryPrice
+        + direction * moneyToPriceDistance(rawValue, context.volume, context.contractSize);
+    case "percent":
+      return context.entryPrice
+        + direction * moneyToPriceDistance(
+          (rawValue / 100) * context.equity,
+          context.volume,
+          context.contractSize,
+        );
+    default:
+      return rawValue;
   }
-  return point && point > 0 ? point * 10 : 0.0001;
+}
+
+export function deriveStopRawValue(
+  mode: StopUnitMode,
+  price: number,
+  context: StopConversionContext,
+): number {
+  const direction = stopDirection(context.side, context.kind);
+  const signedDiff = (price - context.entryPrice) * direction;
+  switch (mode) {
+    case "price":
+      return price;
+    case "pips":
+      return context.pipSize > 0 ? signedDiff / context.pipSize : 0;
+    case "money":
+      return signedDiff * context.volume * context.contractSize;
+    case "percent":
+      return context.equity > 0
+        ? (signedDiff * context.volume * context.contractSize / context.equity) * 100
+        : 0;
+    default:
+      return price;
+  }
+}
+
+export function formatStopRawValue(rawValue: number, mode: StopUnitMode, priceDigits: number): string {
+  const digits = mode === "price" ? priceDigits : STOP_MODE_DECIMALS[mode];
+  return rawValue.toFixed(digits);
 }
 
 /**

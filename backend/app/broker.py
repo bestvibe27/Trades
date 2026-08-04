@@ -104,6 +104,15 @@ def _validate_pending_price(side: str, price: float, bid: float, ask: float) -> 
     return None
 
 
+def _pip_size_from_info(info) -> Optional[float]:
+    point = float(getattr(info, "point", 0.0) or 0.0)
+    explicit = float(getattr(info, "trade_tick_size", 0.0) or 0.0)
+    base = explicit if explicit > 0 else point
+    if base <= 0:
+        return None
+    return base * 10
+
+
 def _check_margin(symbol: str, volume: float, price: float) -> Optional[str]:
     free = _connector.get_free_margin()
     required = _connector.estimate_margin(symbol, volume, price)
@@ -323,6 +332,7 @@ async def get_symbol_info(symbol: str) -> dict:
         "trade_allowed": getattr(info, "trade_allowed", None),
         "trade_mode": getattr(info, "trade_mode", None),
         "point": getattr(info, "point", None),
+        "pip_size": _pip_size_from_info(info),
         "contract_size": getattr(info, "contract_size", None),
         "trade_stops_level": getattr(info, "trade_stops_level", None),
         "swap_long": getattr(info, "swap_long", None),
@@ -346,6 +356,7 @@ async def get_account() -> dict:
         "equity": _connector.get_equity(),
         "free_margin": _connector.get_free_margin(),
         "leverage": getattr(acc, "leverage", 100) if acc else 100,
+        "currency": getattr(acc, "currency", "USD") if acc else "USD",
         "connected": _connector.is_connected(),
         "mode": "mock" if _connector.use_mock else "live",
     }

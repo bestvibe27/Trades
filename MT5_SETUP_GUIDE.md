@@ -16,7 +16,7 @@ Your `.env` file contains:
 ```env
 # MetaTrader 5 Configuration
 MT5_SERVER=Exness-MT5Trial9
-MT5_LOGIN=211433891
+MT5_LOGIN=476170125
 MT5_PASSWORD=@14857251Nati
 MT5_TIMEOUT=10000
 

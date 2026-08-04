@@ -6,6 +6,13 @@ import QuickMarketWidget from "../QuickMarketWidget";
 
 vi.mock("../../../services/tradingAPI", () => ({
   default: {
+    getBrokerAccount: vi.fn(async () => ({
+      equity: 10000,
+      currency: "USD",
+      balance: 10000,
+      free_margin: 10000,
+      leverage: 400,
+    })),
     getBrokerOrderPreview: vi.fn(async () => ({
       fees: 0.1,
       margin: 1.57,
@@ -33,10 +40,15 @@ const baseProps = {
     volume_step: 0.01,
     volume_max: 10,
     point: 0.01,
+    pip_size: 0.1,
     contract_size: 1,
     trade_stops_level: 50,
     swap_long: -2.1,
     swap_short: 0.4,
+  },
+  account: {
+    equity: 10000,
+    currency: "USD",
   },
   connected: true,
   onSymbolChange: vi.fn(),
@@ -122,6 +134,66 @@ describe("QuickMarketWidget", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("flash-msg").textContent).toMatch(/Insufficient margin/i);
+    });
+  });
+
+  it("preserves the canonical value when switching TP input modes", async () => {
+    const user = userEvent.setup();
+    render(<QuickMarketWidget {...baseProps} />);
+
+    const tpInput = screen.getByTestId("tp-input") as HTMLInputElement;
+    const tpMode = screen.getByTestId("tp-mode-select");
+
+    await user.clear(tpInput);
+    await user.type(tpInput, "62791");
+    expect(tpInput.value).toBe("62791");
+
+    await user.selectOptions(tpMode, "pips");
+    await waitFor(() => {
+      expect(tpInput.value).toBe("10.0");
+    });
+
+    await user.selectOptions(tpMode, "money");
+    await waitFor(() => {
+      expect(tpInput.value).toBe("0.10");
+    });
+
+    await user.selectOptions(tpMode, "price");
+    await waitFor(() => {
+      expect(tpInput.value).toBe("62791.00");
+    });
+  });
+
+  it("refreshes money and percent displays when volume or side changes", async () => {
+    const user = userEvent.setup();
+    render(<QuickMarketWidget {...baseProps} />);
+
+    const tpInput = screen.getByTestId("tp-input") as HTMLInputElement;
+    const tpMode = screen.getByTestId("tp-mode-select");
+    const volumeInput = screen.getByTestId("volume-input") as HTMLInputElement;
+
+    await user.selectOptions(tpMode, "money");
+    await user.clear(tpInput);
+    await user.type(tpInput, "10");
+    await waitFor(() => {
+      expect(tpInput.value).toBe("10");
+    });
+
+    await user.clear(volumeInput);
+    await user.type(volumeInput, "0.02");
+    await user.tab();
+    await waitFor(() => {
+      expect(tpInput.value).toBe("20.00");
+    });
+
+    await user.click(screen.getByTestId("sell-box"));
+    await waitFor(() => {
+      expect(tpInput.value).toBe("-19.80");
+    });
+
+    await user.selectOptions(tpMode, "percent");
+    await waitFor(() => {
+      expect(tpInput.value).toBe("-0.20");
     });
   });
 });

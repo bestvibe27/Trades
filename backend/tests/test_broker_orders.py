@@ -91,6 +91,22 @@ def test_order_preview_endpoint(client):
     assert data["margin"] > 0
 
 
+def test_symbol_info_exposes_pip_size(client):
+    res = client.get("/broker/symbols/BTCUSDm")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["found"] is True
+    assert data["pip_size"] == 0.1
+
+
+def test_account_endpoint_exposes_currency(client):
+    res = client.get("/broker/account")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["currency"] == "USD"
+    assert data["equity"] > 0
+
+
 def test_market_order_success(client, mock_connector):
     res = client.post(
         "/broker/order/market",
@@ -113,6 +129,24 @@ def test_market_order_stop_distance_rejection(client, mock_connector, monkeypatc
             "side": "buy",
             "volume": 0.01,
             "tp": 62790.1,
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is False
+    assert "Take Profit" in data["error"] or "too close" in data["error"].lower()
+
+
+def test_pending_order_stop_distance_rejection_with_canonical_price(client, mock_connector, monkeypatch):
+    monkeypatch.setattr(mock_connector, "get_bid_ask", lambda _s: (62780.0, 62790.0))
+    res = client.post(
+        "/broker/order/pending",
+        json={
+            "symbol": "BTCUSDm",
+            "side": "buy",
+            "volume": 0.01,
+            "price": 62770.0,
+            "tp": 62770.1,
         },
     )
     assert res.status_code == 200

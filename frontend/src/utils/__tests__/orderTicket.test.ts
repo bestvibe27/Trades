@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   computePriceDelta,
+  deriveStopRawValue,
   formatDeltaParts,
+  getPipSize,
+  resolveStopPrice,
   snapVolume,
+  StopConversionContext,
   validatePendingPrice,
   validateStopDistance,
 } from "../orderTicket";
@@ -63,5 +67,38 @@ describe("validateStopDistance", () => {
   });
   it("allows levels outside min distance", () => {
     expect(validateStopDistance(101, 100, 50, 0.01, "Take Profit")).toBeNull();
+  });
+});
+
+describe("stop unit conversions", () => {
+  const context: StopConversionContext = {
+    entryPrice: 62790,
+    volume: 0.01,
+    equity: 10000,
+    pipSize: getPipSize(0.01, 0.1),
+    contractSize: 1,
+    side: "buy",
+    kind: "tp",
+  };
+
+  it("round-trips pips to canonical price and back", () => {
+    const price = resolveStopPrice("pips", 10, context);
+    expect(price).toBe(62791);
+    expect(deriveStopRawValue("pips", price, context)).toBe(10);
+  });
+
+  it("converts money and percent using volume, contract size, and equity", () => {
+    const moneyPrice = resolveStopPrice("money", 25, context);
+    expect(moneyPrice).toBe(65290);
+    expect(deriveStopRawValue("money", moneyPrice, context)).toBeCloseTo(25, 6);
+
+    const percentPrice = resolveStopPrice("percent", 1, context);
+    expect(percentPrice).toBe(72790);
+    expect(deriveStopRawValue("percent", percentPrice, context)).toBeCloseTo(1, 6);
+  });
+
+  it("flips direction for sell take profit and buy stop loss", () => {
+    expect(resolveStopPrice("pips", 10, { ...context, side: "sell" })).toBe(62789);
+    expect(resolveStopPrice("pips", 10, { ...context, kind: "sl" })).toBe(62789);
   });
 });

@@ -3,13 +3,22 @@ import styles from "../../styles/QuickMarketWidget.module.css";
 import tradingAPI from "../../services/tradingAPI";
 import {
   computePriceDelta,
+  deriveStopRawValue,
   formatDeltaParts,
   formatPrice,
+  formatStopRawValue,
+  STOP_MODE_LABELS,
+  STOP_MODE_OPTIONS,
+  STOP_MODE_STEPS,
+  resolveStopPrice,
   OrderSide,
   OrderType,
   pressureFromTicks,
   shortSymbolLabel,
   snapVolume,
+  StopConversionContext,
+  StopTargetKind,
+  StopUnitMode,
   SymbolLotConstraints,
   symbolIconLetter,
   validatePendingPrice,
@@ -27,6 +36,7 @@ export interface QuickMarketSymbolInfo extends SymbolLotConstraints {
   found?: boolean;
   digits?: number;
   point?: number;
+  pip_size?: number;
   contract_size?: number;
   trade_stops_level?: number;
   swap_long?: number;
@@ -44,6 +54,11 @@ export interface QuickMarketPreview {
   currency?: string;
 }
 
+export interface QuickMarketAccountInfo {
+  equity: number;
+  currency?: string;
+}
+
 export interface QuickMarketWidgetProps {
   symbol: string;
   symbols: string[];
@@ -54,6 +69,7 @@ export interface QuickMarketWidgetProps {
   onSymbolChange: (symbol: string) => void;
   onOrderSuccess?: () => void | Promise<void>;
   onClose?: () => void;
+  account?: QuickMarketAccountInfo | null;
 }
 
 function DeltaRow({
@@ -97,6 +113,7 @@ const QuickMarketWidget: React.FC<QuickMarketWidgetProps> = ({
   onSymbolChange,
   onOrderSuccess,
   onClose,
+  account,
 }) => {
   const constraints: SymbolLotConstraints = {
     volume_min: symInfo?.volume_min ?? 0.01,
@@ -114,6 +131,8 @@ const QuickMarketWidget: React.FC<QuickMarketWidgetProps> = ({
   const [volumeText, setVolumeText] = useState(constraints.volume_min.toFixed(2));
   const [tp, setTp] = useState<number | null>(null);
   const [sl, setSl] = useState<number | null>(null);
+  const [tpMode, setTpMode] = useState<StopUnitMode>("price");
+  const [slMode, setSlMode] = useState<StopUnitMode>("price");
   const [tpText, setTpText] = useState("");
   const [slText, setSlText] = useState("");
   const [pendingPrice, setPendingPrice] = useState<number | null>(null);
@@ -122,6 +141,7 @@ const QuickMarketWidget: React.FC<QuickMarketWidgetProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [flash, setFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [preview, setPreview] = useState<QuickMarketPreview | null>(null);
+  const [accountInfo, setAccountInfo] = useState<QuickMarketAccountInfo | null>(account ?? null);
   const midHistory = useRef<number[]>([]);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -134,8 +154,9 @@ const QuickMarketWidget: React.FC<QuickMarketWidgetProps> = ({
       : constraints.point && constraints.point > 0
         ? constraints.point
         : 1;
-  const pipSize = getPipSize(symbol, constraints.point);
+  const pipSize = getPipSize(constraints.point, symInfo?.pip_size);
   const contractSize = constraints.contract_size ?? 1;
+  const accountEquity = account?.equity ?? accountInfo?.equity ?? 0;
 
   const entryPrice = useMemo(() => {
     if (!quote) return 0;
@@ -156,6 +177,31 @@ const QuickMarketWidget: React.FC<QuickMarketWidgetProps> = ({
       midHistory.current = [...hist.slice(-40), mid];
     }
   }, [quote?.bid, quote?.ask]);
+
+  useEffect(() => {
+    setAccountInfo(account ?? null);
+  }, [account]);
+
+  useEffect(() => {
+    if (account?.equity != null || !connected) return;
+    let cancelled = false;
+    const loadAccount = async () => {
+      try {
+        const res = await tradingAPI.getBrokerAccount();
+        if (!cancelled) {
+          setAccountInfo({ equity: res.equity, currency: res.currency });
+        }
+      } catch {
+        if (!cancelled) {
+          setAccountInfo(null);
+        }
+      }
+    };
+    void loadAccount();
+    return () => {
+      cancelled = true;
+    };
+  }, [account?.equity, connected, symbol]);
 
   const { sellPct, buyPct } = pressureFromTicks(midHistory.current);
 
@@ -219,12 +265,10 @@ const QuickMarketWidget: React.FC<QuickMarketWidgetProps> = ({
 
   const applyTp = (v: number | null) => {
     setTp(v);
-    setTpText(v == null ? "" : v.toFixed(digits));
   };
 
   const applySl = (v: number | null) => {
     setSl(v);
-    setSlText(v == null ? "" : v.toFixed(digits));
   };
 
   const applyPending = (v: number | null) => {
@@ -339,10 +383,160 @@ const QuickMarketWidget: React.FC<QuickMarketWidgetProps> = ({
   const swapLong = preview?.swap_long ?? symInfo?.swap_long ?? 0;
   const swapShort = preview?.swap_short ?? symInfo?.swap_short ?? 0;
   const cs = preview?.contract_size ?? contractSize;
-  const currency = preview?.currency ?? "USD";
+  const currency = preview?.currency ?? account?.currency ?? accountInfo?.currency ?? "USD";
 
   const groups = symbolsByGroup;
   const flatSymbols = symbols.length ? symbols : Object.values(groups || {}).flat();
+
+  interface StopFieldProps {
+    kind: StopTargetKind;
+    value: number | null;
+    text: string;
+    setText: React.Dispatch<React.SetStateAction<string>>;
+    applyPrice: (value: number | null) => void;
+    mode: StopUnitMode;
+    setMode: React.Dispatch<React.SetStateAction<StopUnitMode>>;
+    testId: string;
+    ariaLabel: string;
+  }
+
+  const StopField = ({
+    kind,
+    value,
+    text,
+    setText,
+    applyPrice,
+    mode,
+    setMode,
+    testId,
+    ariaLabel,
+  }: StopFieldProps) => {
+    const label = kind === "tp" ? "Take Profit" : "Stop Loss";
+    const context: StopConversionContext = {
+      entryPrice,
+      volume,
+      equity: accountEquity,
+      pipSize,
+      contractSize,
+      side,
+      kind,
+    };
+    const onValueChange = (rawText: string) => {
+      setText(rawText);
+      const rawValue = parseFloat(rawText);
+      if (!Number.isFinite(rawValue)) {
+        applyPrice(null);
+        return;
+      }
+      applyPrice(resolveStopPrice(mode, rawValue, context));
+    };
+    const syncTextFromPrice = (nextPrice: number | null, nextMode: StopUnitMode = mode) => {
+      if (nextPrice == null || !Number.isFinite(nextPrice)) {
+        setText("");
+        return;
+      }
+      const rawValue = deriveStopRawValue(nextMode, nextPrice, context);
+      setText(formatStopRawValue(rawValue, nextMode, digits));
+    };
+    const stepValue = (direction: 1 | -1) => {
+      const currentRaw =
+        value == null || !Number.isFinite(value)
+          ? mode === "price"
+            ? entryPrice
+            : 0
+          : deriveStopRawValue(mode, value, context);
+      const nextRaw = currentRaw + direction * STOP_MODE_STEPS[mode];
+      const nextPrice = resolveStopPrice(mode, nextRaw, context);
+      applyPrice(nextPrice);
+      setText(formatStopRawValue(nextRaw, mode, digits));
+    };
+
+    useEffect(() => {
+      syncTextFromPrice(value);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mode, entryPrice, volume, side, accountEquity, pipSize, contractSize, digits]);
+
+    return (
+      <div className={styles.fieldGroup}>
+        <div className={styles.fieldLabel}>
+          {label} <span className={styles.helpIcon} title={`${label} exit price`}>?</span>
+        </div>
+        <div className={styles.fieldRow}>
+          <input
+            className={styles.fieldInput}
+            type="text"
+            inputMode="decimal"
+            placeholder="Not set"
+            value={text}
+            onChange={(e) => onValueChange(e.target.value)}
+            onBlur={() => syncTextFromPrice(value)}
+            data-testid={testId}
+            aria-label={ariaLabel}
+          />
+          <button
+            type="button"
+            className={`${styles.clearBtn} ${value != null ? styles.clearBtnShow : ""}`}
+            aria-label={`Clear ${label.toLowerCase()}`}
+            onClick={() => {
+              applyPrice(null);
+              setText("");
+            }}
+          >
+            ✕
+          </button>
+          <label className={styles.srOnly} htmlFor={`${kind}-mode-select`}>
+            {label} input mode
+          </label>
+          <div className={styles.fieldUnitSelectWrap}>
+            <select
+              id={`${kind}-mode-select`}
+              className={styles.fieldUnitSelect}
+              value={mode}
+              onChange={(e) => setMode(e.target.value as StopUnitMode)}
+              aria-label={`${label} input mode`}
+              data-testid={`${kind}-mode-select`}
+            >
+              {STOP_MODE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <span className={styles.fieldUnitSelectValue} aria-hidden>
+              {STOP_MODE_LABELS[mode]}
+            </span>
+            <span className={styles.chevron} aria-hidden>
+              ▾
+            </span>
+          </div>
+          <button
+            type="button"
+            className={styles.fieldBtn}
+            aria-label={`Decrease ${label.toLowerCase()}`}
+            onClick={() => stepValue(-1)}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className={styles.fieldBtn}
+            aria-label={`Increase ${label.toLowerCase()}`}
+            onClick={() => stepValue(1)}
+          >
+            +
+          </button>
+        </div>
+        <DeltaRow
+          value={value}
+          entry={entryPrice}
+          volume={volume}
+          side={side}
+          pipSize={pipSize}
+          contractSize={contractSize}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className={styles.widget} data-testid="quick-market-widget">
@@ -539,115 +733,29 @@ const QuickMarketWidget: React.FC<QuickMarketWidgetProps> = ({
         </div>
       </div>
 
-      <div className={styles.fieldGroup}>
-        <div className={styles.fieldLabel}>
-          Take Profit <span className={styles.helpIcon} title="Take profit exit price">?</span>
-        </div>
-        <div className={styles.fieldRow}>
-          <input
-            className={styles.fieldInput}
-            type="text"
-            inputMode="decimal"
-            placeholder="Not set"
-            value={tpText}
-            onChange={(e) => {
-              setTpText(e.target.value);
-              const v = parseFloat(e.target.value);
-              setTp(Number.isFinite(v) ? v : null);
-            }}
-            data-testid="tp-input"
-            aria-label="Take profit price"
-          />
-          <button
-            type="button"
-            className={`${styles.clearBtn} ${tp != null ? styles.clearBtnShow : ""}`}
-            aria-label="Clear take profit"
-            onClick={() => applyTp(null)}
-          >
-            ✕
-          </button>
-          <div className={styles.fieldUnit}>Price ▾</div>
-          <button
-            type="button"
-            className={styles.fieldBtn}
-            aria-label="Decrease take profit"
-            onClick={() => applyTp((tp ?? entryPrice) - priceStep)}
-          >
-            −
-          </button>
-          <button
-            type="button"
-            className={styles.fieldBtn}
-            aria-label="Increase take profit"
-            onClick={() => applyTp((tp ?? entryPrice) + priceStep)}
-          >
-            +
-          </button>
-        </div>
-        <DeltaRow
-          value={tp}
-          entry={entryPrice}
-          volume={volume}
-          side={side}
-          pipSize={pipSize}
-          contractSize={contractSize}
-        />
-      </div>
+      <StopField
+        kind="tp"
+        value={tp}
+        text={tpText}
+        setText={setTpText}
+        applyPrice={applyTp}
+        mode={tpMode}
+        setMode={setTpMode}
+        testId="tp-input"
+        ariaLabel="Take profit value"
+      />
 
-      <div className={styles.fieldGroup}>
-        <div className={styles.fieldLabel}>
-          Stop Loss <span className={styles.helpIcon} title="Stop loss exit price">?</span>
-        </div>
-        <div className={styles.fieldRow}>
-          <input
-            className={styles.fieldInput}
-            type="text"
-            inputMode="decimal"
-            placeholder="Not set"
-            value={slText}
-            onChange={(e) => {
-              setSlText(e.target.value);
-              const v = parseFloat(e.target.value);
-              setSl(Number.isFinite(v) ? v : null);
-            }}
-            data-testid="sl-input"
-            aria-label="Stop loss price"
-          />
-          <button
-            type="button"
-            className={`${styles.clearBtn} ${sl != null ? styles.clearBtnShow : ""}`}
-            aria-label="Clear stop loss"
-            onClick={() => applySl(null)}
-          >
-            ✕
-          </button>
-          <div className={styles.fieldUnit}>Price ▾</div>
-          <button
-            type="button"
-            className={styles.fieldBtn}
-            aria-label="Decrease stop loss"
-            onClick={() => applySl((sl ?? entryPrice) - priceStep)}
-          >
-            −
-          </button>
-          <button
-            type="button"
-            className={styles.fieldBtn}
-            aria-label="Increase stop loss"
-            onClick={() => applySl((sl ?? entryPrice) + priceStep)}
-          >
-            +
-          </button>
-        </div>
-        <DeltaRow
-          value={sl}
-          entry={entryPrice}
-          volume={volume}
-          side={side}
-          pipSize={pipSize}
-          contractSize={contractSize}
-        />
-      </div>
+      <StopField
+        kind="sl"
+        value={sl}
+        text={slText}
+        setText={setSlText}
+        applyPrice={applySl}
+        mode={slMode}
+        setMode={setSlMode}
+        testId="sl-input"
+        ariaLabel="Stop loss value"
+      />
 
       <button
         type="button"

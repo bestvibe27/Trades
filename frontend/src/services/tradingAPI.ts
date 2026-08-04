@@ -202,7 +202,7 @@ class TradingAPI {
     return get(`${this.brokerUrl}/order/preview?${q.toString()}`);
   }
 
-  async getBrokerAccount(): Promise<{ balance: number; equity: number; free_margin: number; leverage?: number }>{
+  async getBrokerAccount(): Promise<{ balance: number; equity: number; free_margin: number; leverage?: number; currency?: string }>{
     return get(`${this.brokerUrl}/account`);
   }
 
@@ -218,6 +218,7 @@ class TradingAPI {
     volume_step?: number;
     volume_max?: number;
     point?: number;
+    pip_size?: number;
     contract_size?: number;
     trade_stops_level?: number;
     swap_long?: number;
