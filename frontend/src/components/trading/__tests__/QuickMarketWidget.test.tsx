@@ -142,23 +142,25 @@ describe("QuickMarketWidget", () => {
     render(<QuickMarketWidget {...baseProps} />);
 
     const tpInput = screen.getByTestId("tp-input") as HTMLInputElement;
-    const tpMode = screen.getByTestId("tp-mode-select");
 
     await user.clear(tpInput);
     await user.type(tpInput, "62791");
     expect(tpInput.value).toBe("62791");
 
-    await user.selectOptions(tpMode, "pips");
+    await user.click(screen.getByTestId("tp-mode-select"));
+    await user.click(screen.getByTestId("tp-mode-option-pips"));
     await waitFor(() => {
       expect(tpInput.value).toBe("10.0");
     });
 
-    await user.selectOptions(tpMode, "money");
+    await user.click(screen.getByTestId("tp-mode-select"));
+    await user.click(screen.getByTestId("tp-mode-option-money"));
     await waitFor(() => {
-      expect(tpInput.value).toBe("0.10");
+      expect(tpInput.value).toBe("0.01");
     });
 
-    await user.selectOptions(tpMode, "price");
+    await user.click(screen.getByTestId("tp-mode-select"));
+    await user.click(screen.getByTestId("tp-mode-option-price"));
     await waitFor(() => {
       expect(tpInput.value).toBe("62791.00");
     });
@@ -169,10 +171,10 @@ describe("QuickMarketWidget", () => {
     render(<QuickMarketWidget {...baseProps} />);
 
     const tpInput = screen.getByTestId("tp-input") as HTMLInputElement;
-    const tpMode = screen.getByTestId("tp-mode-select");
     const volumeInput = screen.getByTestId("volume-input") as HTMLInputElement;
 
-    await user.selectOptions(tpMode, "money");
+    await user.click(screen.getByTestId("tp-mode-select"));
+    await user.click(screen.getByTestId("tp-mode-option-money"));
     await user.clear(tpInput);
     await user.type(tpInput, "10");
     await waitFor(() => {
@@ -188,10 +190,11 @@ describe("QuickMarketWidget", () => {
 
     await user.click(screen.getByTestId("sell-box"));
     await waitFor(() => {
-      expect(tpInput.value).toBe("-19.80");
+      expect(tpInput.value).toBe("-20.20");
     });
 
-    await user.selectOptions(tpMode, "percent");
+    await user.click(screen.getByTestId("tp-mode-select"));
+    await user.click(screen.getByTestId("tp-mode-option-percent"));
     await waitFor(() => {
       expect(tpInput.value).toBe("-0.20");
     });

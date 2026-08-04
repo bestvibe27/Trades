@@ -103,6 +103,283 @@ function DeltaRow({
   );
 }
 
+interface UnitModeDropdownProps {
+  kind: StopTargetKind;
+  mode: StopUnitMode;
+  onChange: (mode: StopUnitMode) => void;
+  openDropdown: StopTargetKind | null;
+  setOpenDropdown: (kind: StopTargetKind | null) => void;
+}
+
+function UnitModeDropdown({
+  kind,
+  mode,
+  onChange,
+  openDropdown,
+  setOpenDropdown,
+}: UnitModeDropdownProps) {
+  const listId = `${kind}-mode-listbox`;
+  const isOpen = openDropdown === kind;
+  const [activeIndex, setActiveIndex] = useState(() =>
+    STOP_MODE_OPTIONS.findIndex((o) => o.value === mode),
+  );
+
+  useEffect(() => {
+    setActiveIndex(STOP_MODE_OPTIONS.findIndex((o) => o.value === mode));
+  }, [mode]);
+
+  const open = () => {
+    setOpenDropdown(kind);
+    setActiveIndex(STOP_MODE_OPTIONS.findIndex((o) => o.value === mode));
+  };
+
+  const close = () => setOpenDropdown(null);
+
+  const selectMode = (nextMode: StopUnitMode) => {
+    onChange(nextMode);
+    close();
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (!isOpen) {
+        open();
+        return;
+      }
+      setActiveIndex((i) => (i + 1) % STOP_MODE_OPTIONS.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!isOpen) {
+        open();
+        return;
+      }
+      setActiveIndex((i) => (i - 1 + STOP_MODE_OPTIONS.length) % STOP_MODE_OPTIONS.length);
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (!isOpen) {
+        open();
+        return;
+      }
+      selectMode(STOP_MODE_OPTIONS[activeIndex].value);
+    } else if (e.key === "Escape" && isOpen) {
+      e.preventDefault();
+      close();
+    }
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        className={styles.fieldUnitBtn}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-controls={listId}
+        data-testid={`${kind}-mode-select`}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (isOpen) close();
+          else open();
+        }}
+        onKeyDown={onKeyDown}
+      >
+        <span>{STOP_MODE_LABELS[mode]}</span>
+        <span className={styles.chevron} aria-hidden>
+          ▾
+        </span>
+      </button>
+      <div
+        id={listId}
+        role="listbox"
+        aria-label={`${kind === "tp" ? "Take profit" : "Stop loss"} input mode`}
+        className={`${styles.unitDropdown} ${isOpen ? styles.unitDropdownOpen : ""}`}
+      >
+        {STOP_MODE_OPTIONS.map((option, index) => (
+          <button
+            key={option.value}
+            type="button"
+            role="option"
+            aria-selected={mode === option.value}
+            data-testid={`${kind}-mode-option-${option.value}`}
+            className={`${styles.unitDropdownItem} ${
+              mode === option.value ? styles.unitDropdownItemSelected : ""
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              selectMode(option.value);
+            }}
+            onMouseEnter={() => setActiveIndex(index)}
+            tabIndex={isOpen ? (index === activeIndex ? 0 : -1) : -1}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+interface StopFieldProps {
+  kind: StopTargetKind;
+  value: number | null;
+  text: string;
+  setText: React.Dispatch<React.SetStateAction<string>>;
+  applyPrice: (value: number | null) => void;
+  mode: StopUnitMode;
+  setMode: React.Dispatch<React.SetStateAction<StopUnitMode>>;
+  testId: string;
+  ariaLabel: string;
+  entryPrice: number;
+  volume: number;
+  accountEquity: number;
+  pipSize: number;
+  contractSize: number;
+  side: OrderSide;
+  digits: number;
+  priceStep: number;
+  openDropdown: StopTargetKind | null;
+  setOpenDropdown: (kind: StopTargetKind | null) => void;
+}
+
+function StopField({
+  kind,
+  value,
+  text,
+  setText,
+  applyPrice,
+  mode,
+  setMode,
+  testId,
+  ariaLabel,
+  entryPrice,
+  volume,
+  accountEquity,
+  pipSize,
+  contractSize,
+  side,
+  digits,
+  priceStep,
+  openDropdown,
+  setOpenDropdown,
+}: StopFieldProps) {
+  const label = kind === "tp" ? "Take Profit" : "Stop Loss";
+  const context: StopConversionContext = {
+    entryPrice,
+    volume,
+    equity: accountEquity,
+    pipSize,
+    contractSize,
+    side,
+    kind,
+  };
+
+  const syncTextFromPrice = useCallback(
+    (nextPrice: number | null, nextMode: StopUnitMode = mode) => {
+      if (nextPrice == null || !Number.isFinite(nextPrice)) {
+        setText("");
+        return;
+      }
+      const rawValue = deriveStopRawValue(nextMode, nextPrice, context);
+      setText(formatStopRawValue(rawValue, nextMode, digits));
+    },
+    [mode, entryPrice, volume, accountEquity, pipSize, contractSize, side, kind, digits, setText],
+  );
+
+  const onValueChange = (rawText: string) => {
+    setText(rawText);
+    const rawValue = parseFloat(rawText);
+    if (!Number.isFinite(rawValue)) {
+      applyPrice(null);
+      return;
+    }
+    applyPrice(resolveStopPrice(mode, rawValue, context));
+  };
+
+  const stepValue = (direction: 1 | -1) => {
+    const currentRaw =
+      value == null || !Number.isFinite(value)
+        ? mode === "price"
+          ? entryPrice
+          : 0
+        : deriveStopRawValue(mode, value, context);
+    const step = mode === "price" ? priceStep : STOP_MODE_STEPS[mode];
+    const nextRaw = currentRaw + direction * step;
+    const nextPrice = resolveStopPrice(mode, nextRaw, context);
+    applyPrice(nextPrice);
+    setText(formatStopRawValue(nextRaw, mode, digits));
+  };
+
+  useEffect(() => {
+    syncTextFromPrice(value);
+    // Re-sync display when mode or dependencies change, not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, entryPrice, volume, side, accountEquity, pipSize, contractSize, digits]);
+
+  return (
+    <div className={styles.fieldGroup}>
+      <div className={styles.fieldLabel}>
+        {label} <span className={styles.helpIcon} title={`${label} exit price`}>?</span>
+      </div>
+      <div className={styles.fieldRow}>
+        <input
+          className={styles.fieldInput}
+          type="text"
+          inputMode="decimal"
+          placeholder="Not set"
+          value={text}
+          onChange={(e) => onValueChange(e.target.value)}
+          onBlur={() => syncTextFromPrice(value)}
+          data-testid={testId}
+          aria-label={ariaLabel}
+        />
+        <button
+          type="button"
+          className={`${styles.clearBtn} ${value != null ? styles.clearBtnShow : ""}`}
+          aria-label={`Clear ${label.toLowerCase()}`}
+          onClick={() => {
+            applyPrice(null);
+            setText("");
+          }}
+        >
+          ✕
+        </button>
+        <UnitModeDropdown
+          kind={kind}
+          mode={mode}
+          onChange={setMode}
+          openDropdown={openDropdown}
+          setOpenDropdown={setOpenDropdown}
+        />
+        <button
+          type="button"
+          className={styles.fieldBtn}
+          aria-label={`Decrease ${label.toLowerCase()}`}
+          onClick={() => stepValue(-1)}
+        >
+          −
+        </button>
+        <button
+          type="button"
+          className={styles.fieldBtn}
+          aria-label={`Increase ${label.toLowerCase()}`}
+          onClick={() => stepValue(1)}
+        >
+          +
+        </button>
+      </div>
+      <DeltaRow
+        value={value}
+        entry={entryPrice}
+        volume={volume}
+        side={side}
+        pipSize={pipSize}
+        contractSize={contractSize}
+      />
+    </div>
+  );
+}
+
 const QuickMarketWidget: React.FC<QuickMarketWidgetProps> = ({
   symbol,
   symbols,
@@ -138,12 +415,24 @@ const QuickMarketWidget: React.FC<QuickMarketWidgetProps> = ({
   const [pendingPrice, setPendingPrice] = useState<number | null>(null);
   const [pendingText, setPendingText] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
+  const [openStopDropdown, setOpenStopDropdown] = useState<StopTargetKind | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [flash, setFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [preview, setPreview] = useState<QuickMarketPreview | null>(null);
   const [accountInfo, setAccountInfo] = useState<QuickMarketAccountInfo | null>(account ?? null);
   const midHistory = useRef<number[]>([]);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const widgetRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (!widgetRef.current?.contains(e.target as Node)) {
+        setOpenStopDropdown(null);
+      }
+    };
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, []);
 
   const digits = constraints.digits ?? 2;
   const volStep = constraints.volume_step;
@@ -388,158 +677,8 @@ const QuickMarketWidget: React.FC<QuickMarketWidgetProps> = ({
   const groups = symbolsByGroup;
   const flatSymbols = symbols.length ? symbols : Object.values(groups || {}).flat();
 
-  interface StopFieldProps {
-    kind: StopTargetKind;
-    value: number | null;
-    text: string;
-    setText: React.Dispatch<React.SetStateAction<string>>;
-    applyPrice: (value: number | null) => void;
-    mode: StopUnitMode;
-    setMode: React.Dispatch<React.SetStateAction<StopUnitMode>>;
-    testId: string;
-    ariaLabel: string;
-  }
-
-  const StopField = ({
-    kind,
-    value,
-    text,
-    setText,
-    applyPrice,
-    mode,
-    setMode,
-    testId,
-    ariaLabel,
-  }: StopFieldProps) => {
-    const label = kind === "tp" ? "Take Profit" : "Stop Loss";
-    const context: StopConversionContext = {
-      entryPrice,
-      volume,
-      equity: accountEquity,
-      pipSize,
-      contractSize,
-      side,
-      kind,
-    };
-    const onValueChange = (rawText: string) => {
-      setText(rawText);
-      const rawValue = parseFloat(rawText);
-      if (!Number.isFinite(rawValue)) {
-        applyPrice(null);
-        return;
-      }
-      applyPrice(resolveStopPrice(mode, rawValue, context));
-    };
-    const syncTextFromPrice = (nextPrice: number | null, nextMode: StopUnitMode = mode) => {
-      if (nextPrice == null || !Number.isFinite(nextPrice)) {
-        setText("");
-        return;
-      }
-      const rawValue = deriveStopRawValue(nextMode, nextPrice, context);
-      setText(formatStopRawValue(rawValue, nextMode, digits));
-    };
-    const stepValue = (direction: 1 | -1) => {
-      const currentRaw =
-        value == null || !Number.isFinite(value)
-          ? mode === "price"
-            ? entryPrice
-            : 0
-          : deriveStopRawValue(mode, value, context);
-      const nextRaw = currentRaw + direction * STOP_MODE_STEPS[mode];
-      const nextPrice = resolveStopPrice(mode, nextRaw, context);
-      applyPrice(nextPrice);
-      setText(formatStopRawValue(nextRaw, mode, digits));
-    };
-
-    useEffect(() => {
-      syncTextFromPrice(value);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mode, entryPrice, volume, side, accountEquity, pipSize, contractSize, digits]);
-
-    return (
-      <div className={styles.fieldGroup}>
-        <div className={styles.fieldLabel}>
-          {label} <span className={styles.helpIcon} title={`${label} exit price`}>?</span>
-        </div>
-        <div className={styles.fieldRow}>
-          <input
-            className={styles.fieldInput}
-            type="text"
-            inputMode="decimal"
-            placeholder="Not set"
-            value={text}
-            onChange={(e) => onValueChange(e.target.value)}
-            onBlur={() => syncTextFromPrice(value)}
-            data-testid={testId}
-            aria-label={ariaLabel}
-          />
-          <button
-            type="button"
-            className={`${styles.clearBtn} ${value != null ? styles.clearBtnShow : ""}`}
-            aria-label={`Clear ${label.toLowerCase()}`}
-            onClick={() => {
-              applyPrice(null);
-              setText("");
-            }}
-          >
-            ✕
-          </button>
-          <label className={styles.srOnly} htmlFor={`${kind}-mode-select`}>
-            {label} input mode
-          </label>
-          <div className={styles.fieldUnitSelectWrap}>
-            <select
-              id={`${kind}-mode-select`}
-              className={styles.fieldUnitSelect}
-              value={mode}
-              onChange={(e) => setMode(e.target.value as StopUnitMode)}
-              aria-label={`${label} input mode`}
-              data-testid={`${kind}-mode-select`}
-            >
-              {STOP_MODE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <span className={styles.fieldUnitSelectValue} aria-hidden>
-              {STOP_MODE_LABELS[mode]}
-            </span>
-            <span className={styles.chevron} aria-hidden>
-              ▾
-            </span>
-          </div>
-          <button
-            type="button"
-            className={styles.fieldBtn}
-            aria-label={`Decrease ${label.toLowerCase()}`}
-            onClick={() => stepValue(-1)}
-          >
-            −
-          </button>
-          <button
-            type="button"
-            className={styles.fieldBtn}
-            aria-label={`Increase ${label.toLowerCase()}`}
-            onClick={() => stepValue(1)}
-          >
-            +
-          </button>
-        </div>
-        <DeltaRow
-          value={value}
-          entry={entryPrice}
-          volume={volume}
-          side={side}
-          pipSize={pipSize}
-          contractSize={contractSize}
-        />
-      </div>
-    );
-  };
-
   return (
-    <div className={styles.widget} data-testid="quick-market-widget">
+    <div className={styles.widget} data-testid="quick-market-widget" ref={widgetRef}>
       <div className={styles.header}>
         <div className={styles.headerLeft}>
           <div className={styles.symbolIcon} aria-hidden>
@@ -743,6 +882,16 @@ const QuickMarketWidget: React.FC<QuickMarketWidgetProps> = ({
         setMode={setTpMode}
         testId="tp-input"
         ariaLabel="Take profit value"
+        entryPrice={entryPrice}
+        volume={volume}
+        accountEquity={accountEquity}
+        pipSize={pipSize}
+        contractSize={contractSize}
+        side={side}
+        digits={digits}
+        priceStep={priceStep}
+        openDropdown={openStopDropdown}
+        setOpenDropdown={setOpenStopDropdown}
       />
 
       <StopField
@@ -755,6 +904,16 @@ const QuickMarketWidget: React.FC<QuickMarketWidgetProps> = ({
         setMode={setSlMode}
         testId="sl-input"
         ariaLabel="Stop loss value"
+        entryPrice={entryPrice}
+        volume={volume}
+        accountEquity={accountEquity}
+        pipSize={pipSize}
+        contractSize={contractSize}
+        side={side}
+        digits={digits}
+        priceStep={priceStep}
+        openDropdown={openStopDropdown}
+        setOpenDropdown={setOpenStopDropdown}
       />
 
       <button

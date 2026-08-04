@@ -261,6 +261,7 @@
 
 .fieldGroup {
   margin-bottom: 10px;
+  position: relative;
 }
 
 .fieldLabel {
@@ -342,46 +343,72 @@
   cursor: default;
 }
 
-.fieldUnitSelectWrap {
-  position: relative;
-  min-width: 88px;
-  height: 36px;
-  border-left: 1px solid var(--qm-border);
-  display: flex;
-  align-items: center;
-  background: transparent;
-}
-
-.fieldUnitSelect {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.fieldUnitSelectValue {
-  padding: 0 22px 0 8px;
+.fieldUnitBtn {
   font-size: 12px;
   color: var(--qm-text-dim);
+  padding: 0 8px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   white-space: nowrap;
-  pointer-events: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--qm-border);
+  font-family: inherit;
 }
 
-.fieldUnitSelectWrap .chevron {
-  position: absolute;
-  right: 8px;
-  pointer-events: none;
-}
-
-.fieldUnitSelectWrap:hover,
-.fieldUnitSelectWrap:focus-within {
+.fieldUnitBtn:hover,
+.fieldUnitBtn[aria-expanded="true"] {
+  color: var(--qm-text-main);
   background: var(--card-hover);
 }
 
-.fieldUnitSelect:focus-visible + .fieldUnitSelectValue {
+.fieldUnitBtn:focus-visible {
   color: var(--qm-text-main);
+  outline: 2px solid var(--qm-buy-blue);
+  outline-offset: -2px;
+}
+
+.unitDropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--card-hover);
+  border: 1px solid var(--qm-border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  z-index: 40;
+}
+
+.unitDropdownOpen {
+  display: block;
+}
+
+.unitDropdownItem {
+  width: 100%;
+  padding: 11px 14px;
+  font-size: 13px;
+  color: var(--qm-text-main);
+  cursor: pointer;
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: inherit;
+}
+
+.unitDropdownItem:hover,
+.unitDropdownItem:focus-visible {
+  background: var(--bg-elev-2);
+  outline: none;
+}
+
+.unitDropdownItemSelected {
+  color: var(--qm-buy-blue);
 }
 
 .fieldBtn {
