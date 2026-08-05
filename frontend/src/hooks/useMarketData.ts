@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { get } from '../services/api';
+import marketAPI from '../services/marketAPI';
 
 interface Candle {
   symbol: string;
@@ -68,23 +69,30 @@ export const useMarketData = (symbol: string, timeframe: string, limit: number =
   };
 };
 
-// Hook for real-time price updates
+/** Hook for real-time market price updates from live market API */
 export const usePriceUpdates = (symbol: string) => {
   const [price, setPrice] = useState<number | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Mock WebSocket connection - replace with real WebSocket
-    const mockPrice = 1.0950 + (Math.random() - 0.5) * 0.01;
-    setPrice(mockPrice);
-    setIsConnected(true);
+    let active = true;
+    const fetchLatestPrice = async () => {
+      try {
+        const ticker = await marketAPI.getTicker(symbol);
+        if (active && ticker && ticker.price) {
+          setPrice(ticker.price);
+          setIsConnected(true);
+        }
+      } catch (err) {
+        if (active) setIsConnected(false);
+      }
+    };
 
-    const interval = setInterval(() => {
-      const newPrice = 1.0950 + (Math.random() - 0.5) * 0.01;
-      setPrice(newPrice);
-    }, 1000);
+    fetchLatestPrice();
+    const interval = setInterval(fetchLatestPrice, 3000);
 
     return () => {
+      active = false;
       clearInterval(interval);
       setIsConnected(false);
     };
@@ -92,13 +100,3 @@ export const usePriceUpdates = (symbol: string) => {
 
   return { price, isConnected };
 };
-
-
-
-
-
-
-
-
-
-

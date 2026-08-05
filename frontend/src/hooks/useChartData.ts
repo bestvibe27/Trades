@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { marketAPI } from '../services/marketAPI';
 import { tradingAPI } from '../services/tradingAPI';
+import { useKrakenWebSocket, KrakenOhlcTick, KrakenConnectionStatus } from './useKrakenWebSocket';
 
 export interface ChartCandle {
   open: number;
@@ -22,7 +23,7 @@ export interface UseChartDataOptions {
   pollMs?: number;
 }
 
-export type ChartDataSource = 'broker' | 'market' | 'none';
+export type ChartDataSource = 'broker' | 'market' | 'kraken' | 'none';
 
 /** Map UI timeframe labels to broker/market API strings. */
 export function timeframeToApi(label: string): string {
@@ -78,17 +79,6 @@ function normalizeCandles(raw: Array<{ open?: unknown; high?: unknown; low?: unk
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 }
 
-function mergeQuoteIntoLast(candles: ChartCandle[], quote: ChartQuote | null): ChartCandle[] {
-  if (!candles.length || !quote || !Number.isFinite(quote.last)) return candles;
-  const next = candles.slice();
-  const last = { ...next[next.length - 1] };
-  last.close = quote.last;
-  last.high = Math.max(last.high, quote.last);
-  last.low = Math.min(last.low, quote.last);
-  next[next.length - 1] = last;
-  return next;
-}
-
 async function fetchCandlesFromSources(
   symbol: string,
   apiTf: string,
@@ -106,7 +96,7 @@ async function fetchCandlesFromSources(
   try {
     const res = await marketAPI.getCandles(symbol, apiTf, undefined, undefined, limit, before);
     const candles = normalizeCandles(res.candles);
-    if (candles.length) return { candles, source: 'market' };
+    if (candles.length) return { candles, source: (res.source as ChartDataSource) || 'market' };
   } catch {
     // both failed
   }
@@ -119,7 +109,7 @@ export function useChartData(
   initialTimeframe: string,
   options: UseChartDataOptions = {}
 ) {
-  const { limit = 200, pollMs = 15000 } = options;
+  const { limit = 200, pollMs = 30000 } = options;
 
   const [timeframe, setTimeframeState] = useState(initialTimeframe);
   const [candles, setCandles] = useState<ChartCandle[]>([]);
@@ -130,11 +120,74 @@ export function useChartData(
 
   const loadingHistoryRef = useRef(false);
   const candlesRef = useRef(candles);
-  const quoteRef = useRef(quote);
   candlesRef.current = candles;
-  quoteRef.current = quote;
 
   const apiTf = timeframeToApi(timeframe);
+
+  // Handle incoming live Kraken WebSocket tick
+  const handleKrakenTick = useCallback((tick: KrakenOhlcTick) => {
+    setQuote({
+      last: tick.close,
+      bid: tick.close,
+      ask: tick.close,
+    });
+
+    setCandles((prev) => {
+      if (!prev.length) {
+        return [
+          {
+            open: tick.open,
+            high: tick.high,
+            low: tick.low,
+            close: tick.close,
+            volume: tick.volume,
+            timestamp: tick.timestamp,
+          },
+        ];
+      }
+
+      const next = prev.slice();
+      const lastIndex = next.length - 1;
+      const lastCandle = { ...next[lastIndex] };
+
+      const lastTs = new Date(lastCandle.timestamp).getTime();
+      const tickTs = new Date(tick.timestamp).getTime();
+
+      // If tick belongs to current forming candle (same interval timestamp or within 1 sec)
+      if (Math.abs(tickTs - lastTs) < 2000 || tickTs === lastTs) {
+        lastCandle.open = tick.open;
+        lastCandle.high = Math.max(lastCandle.high, tick.high);
+        lastCandle.low = Math.min(lastCandle.low, tick.low);
+        lastCandle.close = tick.close;
+        if (tick.volume != null) lastCandle.volume = tick.volume;
+        next[lastIndex] = lastCandle;
+        return next;
+      } else if (tickTs > lastTs) {
+        // New candle interval started!
+        next.push({
+          open: tick.open,
+          high: tick.high,
+          low: tick.low,
+          close: tick.close,
+          volume: tick.volume,
+          timestamp: tick.timestamp,
+        });
+        // Limit max stored candles
+        if (next.length > limit + 50) {
+          return next.slice(next.length - limit);
+        }
+        return next;
+      }
+
+      return prev;
+    });
+  }, [limit]);
+
+  // Connect live Kraken WebSocket
+  const krakenWs = useKrakenWebSocket(symbol, timeframe, {
+    enabled: !!symbol,
+    onTick: handleKrakenTick,
+  });
 
   const refresh = useCallback(async () => {
     if (!symbol) return;
@@ -144,10 +197,10 @@ export function useChartData(
       const { candles: fetched, source: src } = await fetchCandlesFromSources(symbol, apiTf, limit);
       setSource(src);
       if (!fetched.length) {
-        setError('No candle data available');
+        setError('No candle data available for selected asset');
         setCandles([]);
       } else {
-        setCandles(mergeQuoteIntoLast(fetched, quoteRef.current));
+        setCandles(fetched);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load chart data');
@@ -199,14 +252,14 @@ export function useChartData(
         setSource(src);
         if (!fetched.length) {
           setCandles([]);
-          setError('No candle data available');
+          setError('No market data available for selected asset');
         } else {
-          setCandles(mergeQuoteIntoLast(fetched, quoteRef.current));
+          setCandles(fetched);
           setError(null);
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : 'Failed to load chart data');
+          setError(e instanceof Error ? e.message : 'Failed to load market chart data');
           setCandles([]);
         }
       } finally {
@@ -223,7 +276,7 @@ export function useChartData(
     setTimeframeState(initialTimeframe);
   }, [initialTimeframe]);
 
-  // Poll candle refetch (keeps bars fresh beyond last-quote merge)
+  // Periodic historical candle sync fallback
   useEffect(() => {
     if (!symbol || pollMs <= 0) return;
     const id = setInterval(() => {
@@ -231,99 +284,27 @@ export function useChartData(
         .then(({ candles: fetched, source: src }) => {
           if (!fetched.length) return;
           setSource(src);
-          setCandles(mergeQuoteIntoLast(fetched, quoteRef.current));
+          setCandles((prev) => {
+            if (!prev.length) return fetched;
+            // Retain last tick close if fresh
+            const merged = fetched.slice();
+            const lastPrev = prev[prev.length - 1];
+            const lastFetched = merged[merged.length - 1];
+            if (lastPrev && lastFetched && new Date(lastPrev.timestamp).getTime() >= new Date(lastFetched.timestamp).getTime()) {
+              merged[merged.length - 1] = {
+                ...lastFetched,
+                close: lastPrev.close,
+                high: Math.max(lastFetched.high, lastPrev.high),
+                low: Math.min(lastFetched.low, lastPrev.low),
+              };
+            }
+            return merged;
+          });
         })
         .catch(() => {});
     }, pollMs);
     return () => clearInterval(id);
   }, [symbol, apiTf, limit, pollMs]);
-
-  // Live quote: EventSource with reconnect + polling fallback
-  useEffect(() => {
-    if (!symbol || typeof window === 'undefined') return;
-
-    let stopped = false;
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let es: EventSource | null = null;
-    let backoffMs = 1000;
-
-    const applyQuote = (q: ChartQuote) => {
-      if (stopped) return;
-      setQuote(q);
-      setCandles((prev) => mergeQuoteIntoLast(prev, q));
-    };
-
-    const pollQuote = async () => {
-      try {
-        const q = await tradingAPI.getBrokerQuote(symbol);
-        applyQuote({ last: q.last, bid: q.bid, ask: q.ask });
-      } catch {
-        // ignore
-      }
-    };
-
-    const startPollingFallback = () => {
-      if (pollTimer || stopped) return;
-      pollQuote();
-      pollTimer = setInterval(pollQuote, 2000);
-    };
-
-    const stopPollingFallback = () => {
-      if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-      }
-    };
-
-    const connect = () => {
-      if (stopped) return;
-      try {
-        es?.close();
-        es = new EventSource(tradingAPI.getBrokerStreamUrl(symbol, 1000));
-        es.onmessage = (ev) => {
-          try {
-            const data = JSON.parse(ev.data);
-            if (data?.last != null) {
-              backoffMs = 1000;
-              stopPollingFallback();
-              applyQuote({
-                last: Number(data.last),
-                bid: Number(data.bid ?? data.last),
-                ask: Number(data.ask ?? data.last),
-              });
-            }
-          } catch {
-            // ignore malformed payloads
-          }
-        };
-        es.onerror = () => {
-          es?.close();
-          es = null;
-          startPollingFallback();
-          if (stopped) return;
-          const delay = backoffMs;
-          backoffMs = Math.min(backoffMs * 2, 15000);
-          reconnectTimer = setTimeout(connect, delay);
-        };
-      } catch {
-        startPollingFallback();
-        if (!stopped) {
-          reconnectTimer = setTimeout(connect, backoffMs);
-          backoffMs = Math.min(backoffMs * 2, 15000);
-        }
-      }
-    };
-
-    connect();
-
-    return () => {
-      stopped = true;
-      es?.close();
-      stopPollingFallback();
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-    };
-  }, [symbol]);
 
   return {
     candles,
@@ -335,6 +316,8 @@ export function useChartData(
     loadMoreHistory,
     refresh,
     source,
+    wsStatus: krakenWs.status,
+    rawPayload: krakenWs.rawPayload,
   };
 }
 

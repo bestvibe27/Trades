@@ -1202,112 +1202,57 @@ class MT5Connector:
         limit = max(1, min(int(limit or 200), 5000))
         tf = self._normalize_timeframe(timeframe)
 
-        if self.use_mock:
-            return self._get_mock_candles(symbol, tf, limit, before)
+        if not self.use_mock:
+            try:
+                if not self._real_initialized:
+                    self.connect()
+                mt5.symbol_select(symbol, True)  # type: ignore
 
+                tf_const = getattr(mt5, f"TIMEFRAME_{tf}", None)  # type: ignore
+                if tf_const is None:
+                    logger.warning(f"Unknown MT5 timeframe {tf}, falling back to M1")
+                    tf_const = mt5.TIMEFRAME_M1  # type: ignore
+                    tf = "M1"
+
+                end = before or datetime.now(timezone.utc)
+                if end.tzinfo is None:
+                    end = end.replace(tzinfo=timezone.utc)
+
+                rates = mt5.copy_rates_from(symbol, tf_const, end, limit)  # type: ignore
+                if rates is not None and len(rates) > 0:
+                    candles: List[Dict[str, Any]] = []
+                    for r in rates:
+                        ts = datetime.fromtimestamp(int(r["time"]), tz=timezone.utc)
+                        candles.append(
+                            {
+                                "open": float(r["open"]),
+                                "high": float(r["high"]),
+                                "low": float(r["low"]),
+                                "close": float(r["close"]),
+                                "volume": float(r["tick_volume"]),
+                                "timestamp": ts.isoformat(),
+                            }
+                        )
+                    return candles
+            except Exception as e:
+                logger.error(f"MT5 get_candles error: {e}")
+
+        # Fallback strictly to live Kraken REST provider (no synthetic or random generation)
         try:
-            if not self._real_initialized:
-                self.connect()
-            mt5.symbol_select(symbol, True)  # type: ignore
-
-            tf_const = getattr(mt5, f"TIMEFRAME_{tf}", None)  # type: ignore
-            if tf_const is None:
-                logger.warning(f"Unknown MT5 timeframe {tf}, falling back to M1")
-                tf_const = mt5.TIMEFRAME_M1  # type: ignore
-                tf = "M1"
-
-            end = before or datetime.now(timezone.utc)
-            if end.tzinfo is None:
-                end = end.replace(tzinfo=timezone.utc)
-
-            rates = mt5.copy_rates_from(symbol, tf_const, end, limit)  # type: ignore
-            if rates is None or len(rates) == 0:
-                code, msg = mt5.last_error()  # type: ignore
-                logger.error(f"copy_rates_from failed for {symbol}/{tf}: {code} {msg}")
-                return self._get_mock_candles(symbol, tf, limit, before)
-
-            candles: List[Dict[str, Any]] = []
-            for r in rates:
-                ts = datetime.fromtimestamp(int(r["time"]), tz=timezone.utc)
-                candles.append(
-                    {
-                        "open": float(r["open"]),
-                        "high": float(r["high"]),
-                        "low": float(r["low"]),
-                        "close": float(r["close"]),
-                        "volume": float(r["tick_volume"]),
-                        "timestamp": ts.isoformat(),
-                    }
-                )
-            return candles
-        except Exception as e:
-            logger.error(f"get_candles error: {e}")
-            return self._get_mock_candles(symbol, tf, limit, before)
-
-    def _get_mock_candles(
-        self,
-        symbol: str,
-        tf: str,
-        limit: int,
-        before: Optional[datetime] = None,
-    ) -> List[Dict[str, Any]]:
-        """Synthesize deterministic-ish OHLCV bars anchored to the mock price."""
-        import math
-        import hashlib
-
-        step = self._TF_SECONDS.get(tf, 60)
-        end = before or datetime.now(timezone.utc)
-        if end.tzinfo is None:
-            end = end.replace(tzinfo=timezone.utc)
-        # Align end to bar boundary
-        end_epoch = int(end.timestamp())
-        end_epoch = end_epoch - (end_epoch % step)
-
-        base = float(self._mock_prices.get(symbol, 100.0))
-        # Seed from symbol so different symbols look distinct but stable across calls
-        seed = int(hashlib.md5(symbol.encode()).hexdigest()[:8], 16)
-
-        candles: List[Dict[str, Any]] = []
-        price = base
-        # Walk backwards then reverse so latest close ≈ base
-        raw: List[Dict[str, Any]] = []
-        for i in range(limit):
-            # Pseudo-random walk using sin hash mix (no global RNG drift)
-            t = end_epoch - i * step
-            n = ((seed + i * 1103515245) & 0x7FFFFFFF) / 0x7FFFFFFF
-            drift = math.sin((seed % 97) + i / 7.0) * 0.0015 * base
-            change = (n - 0.5) * 0.004 * base + drift
-            close = max(base * 0.01, price)
-            open_ = max(base * 0.01, close - change)
-            wick = abs(change) * (0.35 + n * 0.4) + base * 0.0002
-            high = max(open_, close) + wick
-            low = min(open_, close) - wick
-            vol = 50 + (n * 200)
-            raw.append(
+            from backend.data.kraken_provider import KrakenDataProvider
+            k_provider = KrakenDataProvider()
+            series = k_provider.get_historical_candles(symbol, tf, limit=limit, before=before)
+            return [
                 {
-                    "open": round(open_, 8),
-                    "high": round(high, 8),
-                    "low": round(low, 8),
-                    "close": round(close, 8),
-                    "volume": round(vol, 2),
-                    "timestamp": datetime.fromtimestamp(t, tz=timezone.utc).isoformat(),
+                    "open": c.open,
+                    "high": c.high,
+                    "low": c.low,
+                    "close": c.close,
+                    "volume": c.volume,
+                    "timestamp": c.timestamp.isoformat() if isinstance(c.timestamp, datetime) else str(c.timestamp),
                 }
-            )
-            price = open_
-
-        # Reverse so chronological ascending; rebase so last close ≈ live mock price
-        raw.reverse()
-        if raw:
-            live = float(self._mock_prices.get(symbol, base))
-            offset = live - raw[-1]["close"]
-            for c in raw:
-                c["open"] = round(c["open"] + offset, 8)
-                c["high"] = round(c["high"] + offset, 8)
-                c["low"] = round(c["low"] + offset, 8)
-                c["close"] = round(c["close"] + offset, 8)
-            # Keep last candle tracking live price
-            last = raw[-1]
-            last["close"] = round(live, 8)
-            last["high"] = max(last["high"], live)
-            last["low"] = min(last["low"], live)
-        return raw
+                for c in series.candles
+            ]
+        except Exception as err:
+            logger.error(f"Kraken fallback error in mt5_connector: {err}")
+            return []

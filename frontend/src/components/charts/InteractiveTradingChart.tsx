@@ -37,6 +37,8 @@ export interface InteractiveTradingChartProps {
   error?: string | null;
   onLoadMoreHistory?: () => void;
   height?: number;
+  wsStatus?: 'live' | 'reconnecting' | 'stale' | 'offline';
+  rawPayload?: any;
 }
 
 interface InternalCandle {
@@ -180,10 +182,13 @@ const InteractiveTradingChart: React.FC<InteractiveTradingChartProps> = ({
   error = null,
   onLoadMoreHistory,
   height: heightProp = 400,
+  wsStatus = 'live',
+  rawPayload = null,
 }) => {
   const [chartHeight, setChartHeight] = useState(heightProp);
   const [tfOpen, setTfOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [qaModalOpen, setQaModalOpen] = useState(false);
   const [modalType, setModalType] = useState('minutes');
   const [modalInterval, setModalInterval] = useState('');
   const [toastMsg, setToastMsg] = useState('');
@@ -1064,6 +1069,69 @@ const InteractiveTradingChart: React.FC<InteractiveTradingChartProps> = ({
                 {changeSign}{ohlc.change.toFixed(2)} ({changeSign}{ohlc.pct.toFixed(2)}%)
               </span>
             </span>
+
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  backgroundColor:
+                    wsStatus === 'live'
+                      ? 'rgba(34, 197, 94, 0.15)'
+                      : wsStatus === 'reconnecting'
+                      ? 'rgba(234, 179, 8, 0.15)'
+                      : wsStatus === 'stale'
+                      ? 'rgba(249, 115, 22, 0.15)'
+                      : 'rgba(239, 68, 68, 0.15)',
+                  color:
+                    wsStatus === 'live'
+                      ? '#22c55e'
+                      : wsStatus === 'reconnecting'
+                      ? '#eab308'
+                      : wsStatus === 'stale'
+                      ? '#f97316'
+                      : '#ef4444',
+                  border: `1px solid ${
+                    wsStatus === 'live'
+                      ? 'rgba(34, 197, 94, 0.3)'
+                      : wsStatus === 'reconnecting'
+                      ? 'rgba(234, 179, 8, 0.3)'
+                      : wsStatus === 'stale'
+                      ? 'rgba(249, 115, 22, 0.3)'
+                      : 'rgba(239, 68, 68, 0.3)'
+                  }`,
+                }}
+              >
+                {wsStatus === 'live'
+                  ? '🟢 Live'
+                  : wsStatus === 'reconnecting'
+                  ? '🟡 Reconnecting...'
+                  : wsStatus === 'stale'
+                  ? '⚠️ Stale'
+                  : '🔴 Offline'}
+              </span>
+
+              {rawPayload && (
+                <button
+                  type="button"
+                  onClick={() => setQaModalOpen(true)}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--border, #1f2a40)',
+                    color: 'var(--text-dim, #9aa6bd)',
+                    fontSize: '11px',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                  title="Inspect raw market API payload (QA Debugging)"
+                >
+                  🔍 QA Raw
+                </button>
+              )}
+            </div>
           </div>
 
           <div
@@ -1206,6 +1274,51 @@ const InteractiveTradingChart: React.FC<InteractiveTradingChartProps> = ({
           </div>
         </div>
       </div>
+
+      {qaModalOpen && (
+        <div
+          className={`${styles.modalOverlay} ${styles.modalOverlayShow}`}
+          onClick={() => setQaModalOpen(false)}
+        >
+          <div
+            className={styles.modal}
+            style={{ maxWidth: '600px', width: '90%' }}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Raw Market API Payload"
+          >
+            <div className={styles.modalHeader}>
+              <span>Raw Market API Payload (QA Debug)</span>
+              <button type="button" className={styles.modalClose} onClick={() => setQaModalOpen(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              <pre
+                style={{
+                  background: '#0d1117',
+                  color: '#58a6ff',
+                  padding: '12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  maxHeight: '300px',
+                  overflow: 'auto',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all',
+                }}
+              >
+                {JSON.stringify(rawPayload, null, 2)}
+              </pre>
+            </div>
+            <div className={styles.modalFooter}>
+              <button type="button" className={styles.modalBtn} onClick={() => setQaModalOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

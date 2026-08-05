@@ -66,6 +66,8 @@ const TradingPage: React.FC = () => {
     loading: chartLoading,
     error: chartError,
     loadMoreHistory,
+    wsStatus,
+    rawPayload,
   } = useChartData(qSymbol, chartTf, { limit: 250, pollMs: 15000 });
 
   const chartPositions: ChartPositionOverlay[] = useMemo(
@@ -366,6 +368,8 @@ const TradingPage: React.FC = () => {
               error={chartError}
               onLoadMoreHistory={loadMoreHistory}
               height={420}
+              wsStatus={wsStatus}
+              rawPayload={rawPayload}
             />
           </div>
         </div>

@@ -12,12 +12,12 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.data.data_provider import MockDataProvider
+from backend.data.kraken_provider import KrakenDataProvider
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/market", tags=["market"])
-provider = MockDataProvider()
+provider = KrakenDataProvider()
 
 # Lazily reuse the broker connector when available
 _broker = None
@@ -71,7 +71,7 @@ async def candles(
 ) -> dict:
     """Return OHLCV candles for *symbol* / *timeframe*.
 
-    Tries the connected MT5 broker first; falls back to synthetic mock data.
+    Tries the connected MT5 broker first; falls back to real Kraken market data.
     """
     before_dt: Optional[datetime] = None
     if before:
@@ -83,14 +83,14 @@ async def candles(
             raise HTTPException(status_code=400, detail=f"Invalid before timestamp: {e}") from e
 
     broker = _get_broker()
-    if broker is not None and broker.is_connected():
+    if broker is not None and broker.is_connected() and not getattr(broker, "use_mock", False):
         try:
             bars = broker.get_candles(symbol, timeframe, limit=limit, before=before_dt)
             if bars:
                 return {
                     "symbol": symbol,
                     "timeframe": timeframe,
-                    "source": "mock" if broker.use_mock else "mt5",
+                    "source": "mt5",
                     "candles": [
                         {
                             "symbol": symbol,
@@ -106,17 +106,21 @@ async def candles(
                     ],
                 }
         except Exception as e:
-            logger.warning("Broker candles failed, using mock: %s", e)
+            logger.warning("Broker candles failed, falling back to Kraken market data: %s", e)
 
-    series = provider.get_historical_candles(
-        symbol, timeframe, limit=limit, before=before_dt
-    )
-    return {
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "source": "synthetic",
-        "candles": [_serialize_candle(c) for c in series.candles],
-    }
+    try:
+        series = provider.get_historical_candles(
+            symbol, timeframe, limit=limit, before=before_dt
+        )
+        return {
+            "symbol": symbol,
+            "timeframe": symbol,
+            "source": "kraken",
+            "candles": [_serialize_candle(c) for c in series.candles],
+        }
+    except Exception as e:
+        logger.error("Kraken market data error: %s", e)
+        raise HTTPException(status_code=502, detail=f"Market data provider error: {e}") from e
 
 
 @router.get("/timeframes")
