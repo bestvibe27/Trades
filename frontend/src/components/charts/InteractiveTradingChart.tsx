@@ -581,12 +581,16 @@ const InteractiveTradingChart: React.FC<InteractiveTradingChartProps> = ({
       scheduleRender();
     };
 
-    const horizontalZoom = (deltaY: number) => {
+    const horizontalZoom = (deltaY: number, mx?: number) => {
       const factor = Math.exp(deltaY * ZOOM_INTENSITY);
-      const centerIdx = eng.viewOffset + eng.viewCount / 2;
+      let r = 0.5;
+      if (mx != null && eng.plotW > 0 && mx >= 0 && mx <= eng.plotW) {
+        r = mx / eng.plotW;
+      }
+      const anchorIdx = eng.viewOffset + r * eng.viewCount;
       let newViewCount = eng.viewCount * factor;
       newViewCount = Math.max(MIN_VIEW_CANDLES, Math.min(eng.n, newViewCount));
-      let newViewOffset = centerIdx - newViewCount / 2;
+      let newViewOffset = anchorIdx - r * newViewCount;
       newViewOffset = Math.max(0, Math.min(eng.n - newViewCount, newViewOffset));
       eng.viewCount = newViewCount;
       eng.viewOffset = newViewOffset;
@@ -604,6 +608,36 @@ const InteractiveTradingChart: React.FC<InteractiveTradingChartProps> = ({
       eng.vRange = newRange;
       eng.manualPriceScale = true;
       scheduleRender();
+    };
+
+    let inertiaRaf: number | null = null;
+    let velX = 0;
+    let velY = 0;
+
+    const stopInertia = () => {
+      if (inertiaRaf != null) {
+        cancelAnimationFrame(inertiaRaf);
+        inertiaRaf = null;
+      }
+    };
+
+    const startInertia = () => {
+      stopInertia();
+      if (Math.abs(velX) < 0.5 && Math.abs(velY) < 0.5) return;
+      const step = () => {
+        velX *= 0.90;
+        velY *= 0.90;
+        if (Math.abs(velX) < 0.05 && Math.abs(velY) < 0.05) {
+          velX = 0;
+          velY = 0;
+          inertiaRaf = null;
+          return;
+        }
+        if (Math.abs(velX) >= 0.05) panChart(-velX);
+        if (Math.abs(velY) >= 0.05) panPriceVertical(velY);
+        inertiaRaf = requestAnimationFrame(step);
+      };
+      inertiaRaf = requestAnimationFrame(step);
     };
 
     const resizeToContainer = () => {
@@ -639,7 +673,7 @@ const InteractiveTradingChart: React.FC<InteractiveTradingChartProps> = ({
       const my = e.clientY - rect.top;
 
       wrap.style.cursor =
-        eng.isRightDragging || eng.isLeftDragging ? 'grabbing' : mx > eng.plotW ? 'ns-resize' : '';
+        eng.isRightDragging || eng.isLeftDragging ? 'grabbing' : mx > eng.plotW ? 'ns-resize' : 'grab';
 
       if (mx < 0 || mx > eng.plotW || my < PAD_TOP || my > PAD_TOP + eng.plotH || !eng.n) return;
 
@@ -685,9 +719,12 @@ const InteractiveTradingChart: React.FC<InteractiveTradingChartProps> = ({
 
     const onMouseDownLeft = (e: MouseEvent) => {
       if (e.button !== 0 || isOnHandle(e.target)) return;
+      stopInertia();
       eng.isLeftDragging = true;
       eng.leftDragLastX = e.clientX;
       eng.leftDragLastY = e.clientY;
+      velX = 0;
+      velY = 0;
       wrap.style.cursor = 'grabbing';
       document.body.style.userSelect = 'none';
       e.preventDefault();
@@ -695,6 +732,7 @@ const InteractiveTradingChart: React.FC<InteractiveTradingChartProps> = ({
 
     const onMouseDownRight = (e: MouseEvent) => {
       if (e.button !== 2 || isOnHandle(e.target)) return;
+      stopInertia();
       eng.isRightDragging = true;
       eng.rightDragMoved = false;
       eng.rightDragLastX = e.clientX;
@@ -706,6 +744,8 @@ const InteractiveTradingChart: React.FC<InteractiveTradingChartProps> = ({
       if (eng.isLeftDragging) {
         const dx = e.clientX - eng.leftDragLastX;
         const dy = e.clientY - eng.leftDragLastY;
+        velX = dx;
+        velY = dy;
         eng.leftDragLastX = e.clientX;
         eng.leftDragLastY = e.clientY;
         if (dx) panChart(-dx);
@@ -728,7 +768,8 @@ const InteractiveTradingChart: React.FC<InteractiveTradingChartProps> = ({
       if (!eng.isLeftDragging) return;
       eng.isLeftDragging = false;
       document.body.style.userSelect = '';
-      wrap.style.cursor = '';
+      wrap.style.cursor = 'grab';
+      startInertia();
     };
 
     const onWindowMouseUp = (e: MouseEvent) => {
@@ -746,27 +787,98 @@ const InteractiveTradingChart: React.FC<InteractiveTradingChartProps> = ({
 
     const onWheel = (e: WheelEvent) => {
       if (isOnHandle(e.target)) return;
+      e.preventDefault();
+      stopInertia();
+
       const rect = wrap.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
+
       const lineScale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
       const rawDeltaX = e.deltaX * lineScale;
       const rawDeltaY = e.deltaY * lineScale;
-      const shiftDeltaX = e.shiftKey ? (rawDeltaX !== 0 ? rawDeltaX : rawDeltaY) : 0;
-      const horizontalIntent = e.shiftKey || Math.abs(rawDeltaX) > Math.abs(rawDeltaY);
 
-      if (horizontalIntent && mx <= eng.plotW && my >= PAD_TOP && my <= PAD_TOP + eng.plotH) {
-        e.preventDefault();
-        panChart(e.shiftKey ? shiftDeltaX : rawDeltaX);
+      // Trackpad pinch gesture sends ctrlKey/metaKey
+      if (e.ctrlKey || e.metaKey) {
+        horizontalZoom(rawDeltaY * 1.5, mx);
         return;
       }
 
-      e.preventDefault();
-      if (mx > eng.plotW) verticalZoom(rawDeltaY, my);
-      else horizontalZoom(rawDeltaY);
+      // Horizontal 2-finger scroll swipe
+      if (Math.abs(rawDeltaX) > Math.abs(rawDeltaY) || e.shiftKey) {
+        const deltaX = e.shiftKey ? (rawDeltaX !== 0 ? rawDeltaX : rawDeltaY) : rawDeltaX;
+        panChart(deltaX);
+        return;
+      }
+
+      // Scroll over price scale vertical zoom
+      if (mx > eng.plotW) {
+        verticalZoom(rawDeltaY, my);
+      } else {
+        // Cursor-anchored horizontal zoom
+        horizontalZoom(rawDeltaY, mx);
+      }
+    };
+
+    let lastTouchDist = 0;
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (isOnHandle(e.target)) return;
+      stopInertia();
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        lastTouchX = t.clientX;
+        lastTouchY = t.clientY;
+        velX = 0;
+        velY = 0;
+        eng.isLeftDragging = true;
+      } else if (e.touches.length === 2) {
+        eng.isLeftDragging = false;
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastTouchDist = Math.hypot(dx, dy);
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 1 && eng.isLeftDragging) {
+        e.preventDefault();
+        const t = e.touches[0];
+        const dx = t.clientX - lastTouchX;
+        const dy = t.clientY - lastTouchY;
+        velX = dx;
+        velY = dy;
+        lastTouchX = t.clientX;
+        lastTouchY = t.clientY;
+        if (dx) panChart(-dx);
+        if (dy) panPriceVertical(dy);
+      } else if (e.touches.length === 2) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        if (lastTouchDist > 0) {
+          const deltaDist = lastTouchDist - dist;
+          const rect = wrap.getBoundingClientRect();
+          const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+          horizontalZoom(deltaDist * 2, midX);
+        }
+        lastTouchDist = dist;
+      }
+    };
+
+    const onTouchEnd = () => {
+      if (eng.isLeftDragging) {
+        eng.isLeftDragging = false;
+        startInertia();
+      }
+      lastTouchDist = 0;
     };
 
     const onDblClick = (e: MouseEvent) => {
+      stopInertia();
       const rect = wrap.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       if (mx > eng.plotW) {
@@ -802,6 +914,10 @@ const InteractiveTradingChart: React.FC<InteractiveTradingChartProps> = ({
     wrap.addEventListener('mousedown', onMouseDownLeft);
     wrap.addEventListener('mousedown', onMouseDownRight);
     wrap.addEventListener('wheel', onWheel, { passive: false });
+    wrap.addEventListener('touchstart', onTouchStart, { passive: false });
+    wrap.addEventListener('touchmove', onTouchMove, { passive: false });
+    wrap.addEventListener('touchend', onTouchEnd);
+    wrap.addEventListener('touchcancel', onTouchEnd);
     wrap.addEventListener('dblclick', onDblClick);
     wrap.addEventListener('contextmenu', onContextMenu);
     wrap.addEventListener('dragstart', (e) => e.preventDefault());
@@ -816,12 +932,17 @@ const InteractiveTradingChart: React.FC<InteractiveTradingChartProps> = ({
     syncCandles(true);
 
     return () => {
+      stopInertia();
       renderChartRef.current = null;
       wrap.removeEventListener('mousemove', onMouseMove);
       wrap.removeEventListener('mouseleave', onMouseLeave);
       wrap.removeEventListener('mousedown', onMouseDownLeft);
       wrap.removeEventListener('mousedown', onMouseDownRight);
       wrap.removeEventListener('wheel', onWheel);
+      wrap.removeEventListener('touchstart', onTouchStart);
+      wrap.removeEventListener('touchmove', onTouchMove);
+      wrap.removeEventListener('touchend', onTouchEnd);
+      wrap.removeEventListener('touchcancel', onTouchEnd);
       wrap.removeEventListener('dblclick', onDblClick);
       wrap.removeEventListener('contextmenu', onContextMenu);
       cornerHandleRef.current?.removeEventListener('mousedown', onCornerMouseDown);
